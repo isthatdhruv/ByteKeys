@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <title>ByteKeys</title>
+  <defs>
+    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1d2752"/>
+      <stop offset="0.55" stop-color="#121733"/>
+      <stop offset="1" stop-color="#1b1640"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5aa2ff"/>
+      <stop offset="0.5" stop-color="#4f6dff"/>
+      <stop offset="1" stop-color="#a06cff"/>
+    </linearGradient>
+    <radialGradient id="aura" cx="0.5" cy="0.55" r="0.55">
+      <stop offset="0" stop-color="#3d63ff" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#3d63ff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="0.6" y2="0.7">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="slab" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#6d8dff" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#3b4fd8" stop-opacity="0.45"/>
+    </linearGradient>
+    <linearGradient id="lip" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#4f86ff"/>
+      <stop offset="1" stop-color="#8c62ff"/>
+    </linearGradient>
+    <linearGradient id="keys" x1="0" y1="0" x2="1" y2="0.25">
+      <stop offset="0" stop-color="#5f93ff"/>
+      <stop offset="1" stop-color="#9b6dff"/>
+    </linearGradient>
+    <linearGradient id="bolt" x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0" stop-color="#7cc4ff"/>
+      <stop offset="0.6" stop-color="#6f8bff"/>
+      <stop offset="1" stop-color="#c08cff"/>
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6"/>
+    </filter>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="2.4"/>
+    </filter>
+  </defs>
+
+  <!-- glass tile with a glowing rim -->
+  <rect x="18" y="18" width="220" height="220" rx="58" fill="url(#rim)" opacity="0.55" filter="url(#glow)"/>
+  <rect x="18" y="18" width="220" height="220" rx="58" fill="url(#glass)"/>
+  <rect x="18" y="18" width="220" height="220" rx="58" fill="url(#aura)"/>
+  <path d="M76 18 H180 A58 58 0 0 1 238 76 V96 C170 70 96 66 18 96 V76 A58 58 0 0 1 76 18 Z" fill="url(#shine)"/>
+  <rect x="19.5" y="19.5" width="217" height="217" rx="56.5" fill="none" stroke="url(#rim)" stroke-width="3"/>
+
+  <!-- keyboard slab -->
+  <path d="M60 92 H196 Q210 92 212 104 L222 164 Q224 176 210 176 H46 Q32 176 34 164 L44 104 Q46 92 60 92 Z"
+        fill="url(#lip)" opacity="0.5" filter="url(#soft)"/>
+  <path d="M60 92 H196 Q210 92 212 104 L222 164 Q224 176 210 176 H46 Q32 176 34 164 L44 104 Q46 92 60 92 Z"
+        fill="url(#slab)" stroke="#9fb6ff" stroke-opacity="0.65" stroke-width="2"/>
+  <path d="M35 165 Q36 176 46 176 H210 Q220 176 221 165 L222 172 Q223 186 208 186 H48 Q33 186 34 172 Z"
+        fill="url(#lip)" opacity="0.85"/>
+
+  <!-- keys -->
+  <g fill="url(#keys)">
+    <g filter="url(#soft)" opacity="0.9">
+      <rect x="54" y="104" width="38" height="26" rx="6"/>
+      <rect x="166" y="104" width="38" height="26" rx="6"/>
+      <rect x="46" y="140" width="34" height="26" rx="6"/>
+      <rect x="89" y="140" width="34" height="26" rx="6"/>
+      <rect x="133" y="140" width="34" height="26" rx="6"/>
+      <rect x="176" y="140" width="34" height="26" rx="6"/>
+    </g>
+    <rect x="54" y="104" width="38" height="26" rx="6"/>
+    <rect x="166" y="104" width="38" height="26" rx="6"/>
+    <rect x="46" y="140" width="34" height="26" rx="6"/>
+    <rect x="89" y="140" width="34" height="26" rx="6"/>
+    <rect x="133" y="140" width="34" height="26" rx="6"/>
+    <rect x="176" y="140" width="34" height="26" rx="6"/>
+  </g>
+  <g fill="#ffffff" opacity="0.18">
+    <rect x="57" y="106" width="32" height="6" rx="3"/>
+    <rect x="169" y="106" width="32" height="6" rx="3"/>
+    <rect x="49" y="142" width="28" height="5" rx="2.5"/>
+    <rect x="92" y="142" width="28" height="5" rx="2.5"/>
+    <rect x="136" y="142" width="28" height="5" rx="2.5"/>
+    <rect x="179" y="142" width="28" height="5" rx="2.5"/>
+  </g>
+
+  <!-- lightning bolt -->
+  <path d="M139 47 Q141 44 145 44 H152 Q157 44 155 49 L138 84 H162 Q168 84 164 89 L117 141 Q111 147 112 139 L120 104 H98 Q92 104 95 99 Z"
+        fill="#5a8cff" opacity="0.9" filter="url(#glow)"/>
+  <path d="M139 47 Q141 44 145 44 H152 Q157 44 155 49 L138 84 H162 Q168 84 164 89 L117 141 Q111 147 112 139 L120 104 H98 Q92 104 95 99 Z"
+        fill="url(#bolt)" stroke="#d6e6ff" stroke-opacity="0.55" stroke-width="1.5"/>
+</svg>

@@ -1,0 +1,217 @@
+@import "tailwindcss";
+
+/* Colors follow the control panel's theme (bytekeys/gui/theme.py): dark by default, light when the
+   visitor's system asks for it. */
+:root {
+  --bg: #0d1120;
+  --surface: #151b30;
+  --surface-2: #1c233b;
+  --surface-3: #262f4b;
+  --border: #242c46;
+  --text: #e9ecf7;
+  --dim: #98a2bd;
+  --faint: #5f6884;
+  --accent: #5a7dff;
+  --accent-2: #a06cff;
+  --accent-text: #ffffff;
+  --good: #34d399;
+  --warn: #fbbf24;
+  --glow: rgba(61, 99, 255, 0.35);
+  --code-bg: #0a0e1b;
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f2f4fb;
+    --surface: #ffffff;
+    --surface-2: #eef1f9;
+    --surface-3: #e1e6f4;
+    --border: #d9deec;
+    --text: #161b2e;
+    --dim: #56607a;
+    --faint: #8a93aa;
+    --accent: #4f6dff;
+    --accent-2: #8b5cf6;
+    --good: #059669;
+    --warn: #b7791f;
+    --glow: rgba(79, 109, 255, 0.18);
+    --code-bg: #10152a;
+    color-scheme: light;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-line: var(--border);
+  --color-ink: var(--text);
+  --color-dim: var(--dim);
+  --color-faint: var(--faint);
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
+  --color-good: var(--good);
+  --color-warn: var(--warn);
+  --color-code: var(--code-bg);
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", Ubuntu,
+    Cantarell, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, "DejaVu Sans Mono", "Liberation Mono", monospace;
+}
+
+html {
+  background: var(--bg);
+  color: var(--text);
+  -webkit-text-size-adjust: 100%;
+  scroll-padding-top: 5rem;
+}
+
+body {
+  background: var(--bg);
+  font-family: var(--font-sans);
+  font-feature-settings: "cv11", "ss01";
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+@utility container-x {
+  width: 100%;
+  max-width: 72rem;
+  margin-inline: auto;
+  padding-inline: 1rem;
+  @media (width >= 40rem) {
+    padding-inline: 1.5rem;
+  }
+}
+
+@utility text-gradient {
+  background: linear-gradient(100deg, #3fa2ff 0%, #6f8bff 45%, #a26bff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@utility card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+}
+
+@utility eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+@utility btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 0.75rem;
+  padding: 0.75rem 1.125rem;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  line-height: 1.25rem;
+  transition:
+    background-color 150ms,
+    border-color 150ms,
+    transform 150ms;
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}
+
+@utility btn-primary {
+  background: linear-gradient(100deg, #4f6dff, #7a5cff);
+  color: #fff;
+  box-shadow: 0 8px 30px -10px var(--glow);
+  &:hover {
+    background: linear-gradient(100deg, #5a7dff, #8b67ff);
+  }
+}
+
+@utility btn-ghost {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  &:hover {
+    border-color: color-mix(in srgb, var(--accent) 60%, var(--border));
+  }
+}
+
+/* Long-form text on the guide and hardware pages. */
+@utility prose-bk {
+  color: var(--dim);
+  line-height: 1.7;
+  & h2 {
+    color: var(--text);
+    font-size: 1.5rem;
+    line-height: 2rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin-top: 3.5rem;
+    margin-bottom: 1rem;
+    scroll-margin-top: 6rem;
+  }
+  & h3 {
+    color: var(--text);
+    font-size: 1.125rem;
+    font-weight: 600;
+    margin-top: 2rem;
+    margin-bottom: 0.5rem;
+  }
+  & p {
+    margin-top: 0.75rem;
+  }
+  & a {
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  & ul {
+    margin-top: 0.75rem;
+    list-style: disc;
+    padding-left: 1.25rem;
+  }
+  & li {
+    margin-top: 0.375rem;
+  }
+  & strong {
+    color: var(--text);
+    font-weight: 600;
+  }
+}
+
+code:not(pre code) {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  padding: 0.1em 0.35em;
+  border-radius: 0.375rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .glow-pulse {
+    animation: glow-pulse 6s ease-in-out infinite;
+  }
+}
+
+@keyframes glow-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
