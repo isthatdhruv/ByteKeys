@@ -40,3 +40,6 @@ through `next/font`, which downloads them once at build time and serves them fro
    the DNS provider.
 
 Every push to `main` redeploys the site; release data refreshes on its own every hour.
+
+After a deploy that changes pages, `npm run indexnow` tells Bing and the other IndexNow engines to recrawl them (the key file
+is in `public/`). Google reads the sitemap.
