@@ -1,0 +1,58 @@
+{
+  "automation-dark": {
+    "width": 1240,
+    "height": 860
+  },
+  "automation-light": {
+    "width": 1240,
+    "height": 860
+  },
+  "home-dark": {
+    "width": 1240,
+    "height": 860
+  },
+  "home-light": {
+    "width": 1240,
+    "height": 860
+  },
+  "lighting-dark": {
+    "width": 1240,
+    "height": 860
+  },
+  "lighting-light": {
+    "width": 1240,
+    "height": 860
+  },
+  "lighting-zones-dark": {
+    "width": 1240,
+    "height": 860
+  },
+  "lighting-zones-light": {
+    "width": 1240,
+    "height": 860
+  },
+  "performance-dark": {
+    "width": 1240,
+    "height": 860
+  },
+  "performance-light": {
+    "width": 1240,
+    "height": 860
+  },
+  "profiles-dark": {
+    "width": 1240,
+    "height": 860
+  },
+  "profiles-light": {
+    "width": 1240,
+    "height": 860
+  },
+  "settings-dark": {
+    "width": 1240,
+    "height": 860
+  },
+  "settings-light": {
+    "width": 1240,
+    "height": 860
+  }
+}

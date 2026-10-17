@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <title>ByteKeys</title>
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1d1d21"/>
+      <stop offset="1" stop-color="#09090b"/>
+    </linearGradient>
+    <radialGradient id="warmTL" cx="0.02" cy="0.02" r="0.62">
+      <stop offset="0" stop-color="#8a7559" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#8a7559" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="warmBR" cx="1" cy="1" r="0.55">
+      <stop offset="0" stop-color="#7b6c5a" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#7b6c5a" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="glassBack" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.13"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.03"/>
+    </linearGradient>
+    <linearGradient id="rimBack" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.12"/>
+    </linearGradient>
+    <linearGradient id="body" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0" stop-color="#3a3a41"/>
+      <stop offset="1" stop-color="#121215"/>
+    </linearGradient>
+    <linearGradient id="face" x1="0" y1="0" x2="0.5" y2="1">
+      <stop offset="0" stop-color="#2f2f35"/>
+      <stop offset="1" stop-color="#18181c"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.85"/>
+      <stop offset="0.55" stop-color="#ffffff" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#f5d9a8" stop-opacity="0.95"/>
+    </linearGradient>
+    <linearGradient id="warmEdge" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffe2b0" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.55"/>
+    </linearGradient>
+    <radialGradient id="sunGlow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffe9c7" stop-opacity="0.75"/>
+      <stop offset="1" stop-color="#ffe9c7" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="blur" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="5"/>
+    </filter>
+    <filter id="soft" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="2"/>
+    </filter>
+  </defs>
+
+  <!-- graphite tile with warm corner light -->
+  <rect x="16" y="16" width="224" height="224" rx="54" fill="url(#tile)"/>
+  <rect x="16" y="16" width="224" height="224" rx="54" fill="url(#warmTL)"/>
+  <rect x="16" y="16" width="224" height="224" rx="54" fill="url(#warmBR)"/>
+  <rect x="16.75" y="16.75" width="222.5" height="222.5" rx="53.25" fill="none" stroke="#ffffff" stroke-opacity="0.09" stroke-width="1.5"/>
+
+  <!-- back keycaps -->
+  <g transform="rotate(-16 100 120)">
+    <rect x="46" y="76" width="96" height="96" rx="22" fill="url(#glassBack)" stroke="url(#rimBack)" stroke-width="2"/>
+  </g>
+  <g transform="rotate(-8 104 104)">
+    <rect x="58" y="58" width="100" height="100" rx="24" fill="url(#glassBack)" stroke="url(#rimBack)" stroke-width="2"/>
+  </g>
+
+  <!-- front keycap: glowing glass body, then the top face -->
+  <g transform="rotate(-6 146 142)">
+    <rect x="88" y="86" width="118" height="122" rx="30" fill="#f5d9a8" opacity="0.35" filter="url(#blur)"/>
+    <rect x="88" y="86" width="118" height="122" rx="30" fill="url(#body)" stroke="url(#rim)" stroke-width="2.5"/>
+    <path d="M94 178 Q96 204 122 205 H174 Q200 204 202 178" fill="none" stroke="url(#warmEdge)" stroke-width="3" stroke-linecap="round" filter="url(#soft)"/>
+    <rect x="98" y="92" width="98" height="96" rx="22" fill="url(#face)" stroke="#ffffff" stroke-opacity="0.22" stroke-width="1.5"/>
+    <rect x="108" y="95" width="78" height="3" rx="1.5" fill="#ffffff" opacity="0.10"/>
+    <!-- sun -->
+    <circle cx="150" cy="140" r="28" fill="url(#sunGlow)"/>
+    <g stroke="#fbeedb" stroke-width="5" stroke-linecap="round" fill="none">
+      <circle cx="150" cy="140" r="11"/>
+      <path d="M150 115 V121 M150 159 V165 M125 140 H131 M169 140 H175 M132.3 122.3 L136.6 126.6 M163.4 153.4 L167.7 157.7 M132.3 157.7 L136.6 153.4 M163.4 126.6 L167.7 122.3"/>
+    </g>
+  </g>
+</svg>
