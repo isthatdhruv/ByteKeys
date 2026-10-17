@@ -1,0 +1,11 @@
+#!/bin/sh
+set -e
+
+if [ -d /run/systemd/system ] && [ "$1" = "remove" ]; then
+    deb-systemd-invoke stop 'bytekeysd.service' >/dev/null || true
+fi
+if [ "$1" = "remove" ] || [ "$1" = "upgrade" ]; then
+    find /usr/lib/bytekeys -name __pycache__ -type d -prune -exec rm -rf {} + 2>/dev/null || true
+fi
+
+exit 0

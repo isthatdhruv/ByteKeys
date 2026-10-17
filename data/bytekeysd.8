@@ -1,0 +1,39 @@
+.TH BYTEKEYSD 8 "October 2026" "ByteKeys 1.0.0" "System Administration"
+.SH NAME
+bytekeysd \- ByteKeys keyboard lighting service
+.SH SYNOPSIS
+.B bytekeysd
+[\fB\-\-socket\fR \fIPATH\fR] [\fB\-\-state\-dir\fR \fIDIR\fR] [\fB\-\-no\-input\fR] [\fB\-\-demo\fR] [\fB\-v\fR]
+.SH DESCRIPTION
+.B bytekeysd
+owns the keyboard lighting hardware. It applies the chosen lighting, runs
+effects and automation rules, restores everything at boot and after
+suspend, and serves the
+.BR bytekeys (1)
+tools over a Unix socket. Anyone may query it; changes are accepted from
+root, members of the
+.B bytekeys
+group and the user of the active local session.
+.PP
+It is normally started by systemd
+.RB ( bytekeysd.service ).
+.SH OPTIONS
+.TP
+.BI \-\-socket " PATH"
+Control socket (default /run/bytekeys/bytekeysd.sock).
+.TP
+.BI \-\-state\-dir " DIR"
+Where settings are kept (default /var/lib/bytekeys).
+.TP
+.B \-\-no\-input
+Do not watch input devices. Disables idle rules and the Reactive effect.
+Only the time of the last input is ever used, never which keys were pressed.
+.TP
+.B \-\-demo
+Add simulated keyboards.
+.TP
+.B \-v
+Debug logging.
+.SH SEE ALSO
+.BR bytekeys (1),
+.BR bytekeys-gui (1)

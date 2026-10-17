@@ -1,0 +1,44 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Version must match the tag
+        run: |
+          VERSION=$(python3 -c "import bytekeys; print(bytekeys.__version__)")
+          echo "version $VERSION, tag $GITHUB_REF_NAME"
+          test "v$VERSION" = "$GITHUB_REF_NAME"
+      - name: Unit tests
+        run: python3 -m unittest discover -s tests -t .
+      - name: Build .deb
+        run: packaging/deb/build-deb.sh
+      - name: Build AppImage
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: packaging/appimage/build-appimage.sh
+      - name: Checksums and release notes
+        run: |
+          cd dist && sha256sum * > SHA256SUMS && cd ..
+          VERSION=${GITHUB_REF_NAME#v}
+          awk -v v="$VERSION" '/^## /{p = index($0, "## " v) == 1; next} p' CHANGELOG.md > notes.md
+          cat >> notes.md <<'EOF'
+
+          ### Install
+          - **Debian / Ubuntu**: `sudo apt install ./bytekeys_*_all.deb`
+          - **Any distribution**: make the `.AppImage` executable and run it, then click *Install service*
+            for full control.
+          EOF
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: ByteKeys ${{ github.ref_name }}
+          body_path: notes.md
+          files: dist/*

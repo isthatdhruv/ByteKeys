@@ -1,0 +1,34 @@
+name: Bug report
+description: Something does not work as it should
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: Steps to reproduce, what you expected and what happened instead.
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How did you install ByteKeys?
+      options:
+        - .deb package
+        - AppImage (with the service installed)
+        - AppImage (portable mode)
+        - From source
+    validations:
+      required: true
+  - type: textarea
+    id: report
+    attributes:
+      label: Diagnostic report
+      description: Output of `bytekeys report`, or System → Copy report.
+      render: text
+  - type: textarea
+    id: logs
+    attributes:
+      label: Service log (optional)
+      description: "`journalctl -u bytekeysd -b --no-pager | tail -50`"
+      render: text

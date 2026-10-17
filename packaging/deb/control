@@ -1,0 +1,25 @@
+Package: bytekeys
+Version: @VERSION@
+Architecture: all
+Maintainer: @MAINTAINER@
+Installed-Size: @SIZE@
+Depends: python3 (>= 3.10), python3-pyqt6 | python3-pyside6.qtwidgets, init-system-helpers (>= 1.54~)
+Recommends: pkexec | policykit-1, qt6-wayland
+Suggests: openrgb
+Section: utils
+Priority: optional
+Homepage: https://github.com/bytekeys/bytekeys
+Description: keyboard backlight and RGB lighting control for laptops
+ ByteKeys controls the keyboard lighting of Linux laptops: white backlights
+ as well as single-zone, multi-zone and per-key RGB keyboards. It detects the
+ laptop and its keyboard automatically and configures itself.
+ .
+ Features: brightness, colors, zones and per-key colors; software and
+ hardware effects; automation rules (dim on battery, off when idle, low
+ battery and overheat warnings, Caps Lock indicator, schedules); profiles;
+ a tray icon and a command line tool.
+ .
+ Hardware is reached through kernel drivers (asus-wmi, thinkpad_acpi,
+ dell-laptop, system76_acpi, tuxedo-drivers and others), common USB lighting
+ controllers, and OpenRGB. A small system service (bytekeysd) does the
+ privileged work so the control panel runs as a normal user.

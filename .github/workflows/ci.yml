@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Byte-compile
+        run: python -m compileall -q bytekeys tests tools
+      - name: Unit tests
+        run: python -m unittest discover -s tests -t . -v
+
+  packages:
+    runs-on: ubuntu-24.04
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build .deb
+        run: packaging/deb/build-deb.sh
+      - name: Build AppImage
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: packaging/appimage/build-appimage.sh
+      - name: Smoke test
+        run: |
+          dpkg-deb --info dist/*.deb
+          APPIMAGE_EXTRACT_AND_RUN=1 ./dist/ByteKeys-*-x86_64.AppImage cli --version
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bytekeys-packages
+          path: dist/*

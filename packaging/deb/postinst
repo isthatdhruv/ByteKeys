@@ -1,0 +1,34 @@
+#!/bin/sh
+set -e
+
+if [ "$1" = "configure" ]; then
+    # A service installed earlier from the AppImage ("bytekeys service install")
+    # would shadow the packaged one; the package takes over.
+    if [ -f /etc/systemd/system/bytekeysd.service ] && \
+       grep -q 'bytekeys service install' /etc/systemd/system/bytekeysd.service; then
+        rm -f /etc/systemd/system/bytekeysd.service
+        rm -rf /opt/bytekeys
+    fi
+    python3 -m compileall -q /usr/lib/bytekeys >/dev/null 2>&1 || true
+fi
+
+# Same logic debhelper generates for a service enabled on installation.
+if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ]; then
+    deb-systemd-helper unmask 'bytekeysd.service' >/dev/null || true
+    if deb-systemd-helper --quiet was-enabled 'bytekeysd.service'; then
+        deb-systemd-helper enable 'bytekeysd.service' >/dev/null || true
+    else
+        deb-systemd-helper update-state 'bytekeysd.service' >/dev/null || true
+    fi
+    if [ -d /run/systemd/system ]; then
+        systemctl --system daemon-reload >/dev/null || true
+        if [ -n "$2" ]; then
+            _action=restart
+        else
+            _action=start
+        fi
+        deb-systemd-invoke $_action 'bytekeysd.service' >/dev/null || true
+    fi
+fi
+
+exit 0

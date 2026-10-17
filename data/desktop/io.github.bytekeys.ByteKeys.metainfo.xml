@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.bytekeys.ByteKeys</id>
+  <name>ByteKeys</name>
+  <summary>Control your laptop keyboard backlight and RGB lighting</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <developer id="io.github.bytekeys">
+    <name>The ByteKeys contributors</name>
+  </developer>
+  <description>
+    <p>
+      ByteKeys controls the keyboard lighting of Linux laptops: plain white backlights as well as
+      single-zone, multi-zone and per-key RGB keyboards. It detects your laptop and keyboard
+      automatically and configures itself.
+    </p>
+    <ul>
+      <li>Brightness, colors, zones and per-key colors</li>
+      <li>Software effects for every keyboard and the keyboard's own hardware effects</li>
+      <li>Rules: dim on battery, turn off when idle, low battery and overheat warnings, Caps Lock indicator, schedules</li>
+      <li>Profiles you can switch from the tray, the command line or rules</li>
+      <li>Works with kernel drivers, common USB lighting controllers and OpenRGB</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">io.github.bytekeys.ByteKeys.desktop</launchable>
+  <url type="homepage">https://github.com/bytekeys/bytekeys</url>
+  <url type="bugtracker">https://github.com/bytekeys/bytekeys/issues</url>
+  <categories>
+    <category>Settings</category>
+    <category>HardwareSettings</category>
+  </categories>
+  <keywords>
+    <keyword>keyboard</keyword>
+    <keyword>backlight</keyword>
+    <keyword>RGB</keyword>
+    <keyword>LED</keyword>
+  </keywords>
+  <provides>
+    <binary>bytekeys</binary>
+    <binary>bytekeys-gui</binary>
+  </provides>
+  <requires>
+    <display_length compare="ge">768</display_length>
+  </requires>
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+  <screenshots>
+    <screenshot type="default">
+      <caption>Lighting: live preview, modes and colors</caption>
+      <image>https://raw.githubusercontent.com/bytekeys/bytekeys/main/docs/screenshots/lighting-dark.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Rules: automatic lighting</caption>
+      <image>https://raw.githubusercontent.com/bytekeys/bytekeys/main/docs/screenshots/rules-dark.png</image>
+    </screenshot>
+  </screenshots>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="1.0.0" date="2026-10-17">
+      <description>
+        <p>First public release: automatic detection, modes and effects, zones and per-key colors,
+        rules, profiles, tray icon, command line tool and background service.</p>
+      </description>
+    </release>
+  </releases>
+</component>

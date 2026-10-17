@@ -1,0 +1,23 @@
+.TH BYTEKEYS-GUI 1 "October 2026" "ByteKeys 1.0.0" "User Commands"
+.SH NAME
+bytekeys-gui \- ByteKeys keyboard lighting control panel
+.SH SYNOPSIS
+.B bytekeys-gui
+[\fB\-\-minimized\fR] [\fB\-\-demo\fR] [\fB\-\-local\fR]
+.SH DESCRIPTION
+Opens the ByteKeys control panel: brightness, colors, effects, automation
+rules and profiles for the keyboard lighting of this laptop. It also adds a
+tray icon with quick controls.
+.SH OPTIONS
+.TP
+.B \-\-minimized
+Start hidden in the tray (used when started at login).
+.TP
+.B \-\-demo
+Add simulated keyboards.
+.TP
+.B \-\-local
+Do not use the bytekeysd service (portable mode).
+.SH SEE ALSO
+.BR bytekeys (1),
+.BR bytekeysd (8)

@@ -1,0 +1,38 @@
+name: Device support
+description: My keyboard lighting is not detected, or an experimental driver does (not) work
+labels: [hardware]
+body:
+  - type: input
+    id: model
+    attributes:
+      label: Laptop model
+      placeholder: e.g. Lenovo Legion 5 15ACH6H
+    validations:
+      required: true
+  - type: dropdown
+    id: lighting
+    attributes:
+      label: Keyboard lighting
+      options:
+        - White backlight
+        - RGB, one color
+        - RGB, a few zones
+        - RGB, per key
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happens?
+      description: What works, what does not, and what you expected.
+    validations:
+      required: true
+  - type: textarea
+    id: report
+    attributes:
+      label: Diagnostic report
+      description: Output of `bytekeys report`, or System → Copy report in the control panel.
+      render: text
+    validations:
+      required: true

@@ -1,0 +1,18 @@
+#!/bin/sh
+set -e
+
+if [ "$1" = "remove" ] && command -v deb-systemd-helper >/dev/null 2>&1; then
+    deb-systemd-helper mask 'bytekeysd.service' >/dev/null || true
+fi
+if [ "$1" = "purge" ]; then
+    if command -v deb-systemd-helper >/dev/null 2>&1; then
+        deb-systemd-helper purge 'bytekeysd.service' >/dev/null || true
+        deb-systemd-helper unmask 'bytekeysd.service' >/dev/null || true
+    fi
+    rm -rf /var/lib/bytekeys
+fi
+if [ -d /run/systemd/system ]; then
+    systemctl --system daemon-reload >/dev/null || true
+fi
+
+exit 0

@@ -1,0 +1,30 @@
+#!/bin/sh
+# ByteKeys AppImage entry point.
+#   ByteKeys.AppImage                 open the control panel
+#   ByteKeys.AppImage cli ARGS...     run the command line tool (bytekeys ARGS...)
+#   ByteKeys.AppImage service install install the background service
+HERE="$(dirname "$(readlink -f "$0")")"
+PY="$HERE/usr/python/bin/python3"
+export PYTHONPATH="$HERE/usr/lib/bytekeys${PYTHONPATH:+:$PYTHONPATH}"
+export PYTHONDONTWRITEBYTECODE=1
+export PYTHONNOUSERSITE=1
+export BYTEKEYS_BUNDLED_PYTHON="$HERE/usr/python"
+export BYTEKEYS_QT="${BYTEKEYS_QT:-pyside6}"
+
+case "${1:-}" in
+    cli|bytekeys)
+        shift
+        exec "$PY" -m bytekeys "$@" ;;
+    service|status|report|list|on|off|toggle|brightness|color|effect|effects|profile|rules|feature|flash|sensors|rescan|settings)
+        exec "$PY" -m bytekeys "$@" ;;
+    daemon|bytekeysd)
+        shift
+        exec "$PY" -m bytekeys.daemon "$@" ;;
+esac
+
+# Invoked through a symlink called "bytekeys" -> command line tool.
+case "$(basename "${ARGV0:-$0}")" in
+    bytekeys) exec "$PY" -m bytekeys "$@" ;;
+esac
+
+exec "$PY" -m bytekeys.gui.app "$@"

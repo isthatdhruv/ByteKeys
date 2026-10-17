@@ -1,0 +1,118 @@
+.TH BYTEKEYS 1 "October 2026" "ByteKeys 1.0.0" "User Commands"
+.SH NAME
+bytekeys \- control laptop keyboard backlight and RGB lighting
+.SH SYNOPSIS
+.B bytekeys
+[\fB\-\-json\fR] [\fB\-\-local\fR] [\fB\-\-demo\fR]
+.I command
+[\fIoptions\fR]
+.br
+.B bytekeys-gui
+[\fB\-\-minimized\fR] [\fB\-\-demo\fR]
+.SH DESCRIPTION
+.B ByteKeys
+controls the keyboard lighting of Linux laptops: single-color backlights and
+single-zone, multi-zone or per-key RGB keyboards. It talks to the
+.B bytekeysd
+system service when it is running and otherwise drives the hardware directly
+("portable mode", limited to what the current user may change).
+.SH COMMANDS
+.TP
+.B status
+Show detected keyboards and their lighting (the default command).
+.TP
+.B list
+List device identifiers.
+.TP
+.BR on " | " off " | " toggle
+Switch the lights.
+.TP
+.BI brightness " VALUE"
+Set brightness in percent, or
+.BR up / down
+by one step.
+.TP
+.BI color " COLOR " "[COLOR...]"
+Set the color as #rrggbb, r,g,b or a name. Several colors set one zone each;
+.BI \-\-zone " N"
+changes a single zone.
+.TP
+.BI effect " NAME"
+Play an effect.
+.BR \-\-speed ,
+.B \-\-direction
+and repeated
+.B \-\-color
+tune it. See
+.BR effects .
+.TP
+.B effects
+List the effects each keyboard supports.
+.TP
+.BR profile " list | save | apply | delete | rename"
+Manage lighting profiles.
+.TP
+.BR rules " [list | enable ID | disable ID | export | import FILE]"
+Manage automation rules.
+.TP
+.BR feature " [NAME [VALUE]]"
+Show or change device specific settings such as firmware timeouts.
+.TP
+.B flash
+Blink the keyboard
+.RB ( \-\-color ,
+.BR \-\-count ,
+.BR \-\-period ),
+e.g. from a notification script.
+.TP
+.B sensors
+Show the readings automation rules use.
+.TP
+.B report
+Print a diagnostic report for bug reports.
+.TP
+.B rescan
+Look for keyboards again.
+.TP
+.BR service " install | uninstall | status"
+Install or remove the system service (for source checkouts and the AppImage).
+.TP
+.B gui
+Open the control panel.
+.SH OPTIONS
+.TP
+.BI \-d " DEVICE" "\fR, \fP\-\-device " DEVICE
+Act on one device (default: all).
+.TP
+.B \-\-json
+Machine readable output.
+.TP
+.B \-\-local
+Do not use the service.
+.TP
+.B \-\-demo
+Add simulated keyboards.
+.SH FILES
+.TP
+.I /var/lib/bytekeys/state.json
+Lighting, rules and profiles stored by the service.
+.TP
+.I ~/.local/state/bytekeys/state.json
+The same, in portable mode.
+.TP
+.I /run/bytekeys/bytekeysd.sock
+Control socket of the service.
+.SH EXAMPLES
+.nf
+bytekeys brightness 60
+bytekeys color "#ff8800"
+bytekeys effect wave \-\-speed 70
+bytekeys profile apply Night
+bytekeys flash \-\-color red \-\-count 3
+.fi
+.SH SEE ALSO
+.BR openrgb (1)
+.SH BUGS
+Please report problems, with the output of
+.BR "bytekeys report" ,
+at https://github.com/bytekeys/bytekeys/issues
