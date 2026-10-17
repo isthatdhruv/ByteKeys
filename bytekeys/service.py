@@ -26,7 +26,7 @@ UNIT_TEMPLATE = """\
 # Installed by "bytekeys service install". Remove with "bytekeys service uninstall".
 [Unit]
 Description=ByteKeys keyboard lighting service
-Documentation=https://github.com/bytekeys/bytekeys
+Documentation=https://github.com/isthatdhruv/ByteKeys
 After=systemd-udevd.service
 
 [Service]

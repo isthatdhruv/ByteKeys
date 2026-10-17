@@ -34,8 +34,8 @@ bytekeysd = "bytekeys.daemon:main"
 bytekeys-gui = "bytekeys.gui.app:main"
 
 [project.urls]
-Homepage = "https://github.com/bytekeys/bytekeys"
-Issues = "https://github.com/bytekeys/bytekeys/issues"
+Homepage = "https://github.com/isthatdhruv/ByteKeys"
+Issues = "https://github.com/isthatdhruv/ByteKeys/issues"
 
 [tool.setuptools.dynamic]
 version = { attr = "bytekeys.__version__" }

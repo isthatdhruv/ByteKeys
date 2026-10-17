@@ -18,7 +18,7 @@ CACHE=${CACHE_DIR:-$ROOT/build/cache}
 BUILD=$ROOT/build/appimage
 APPDIR=$BUILD/AppDir
 OUT=${OUT:-$ROOT/dist}
-APP_ID=io.github.bytekeys.ByteKeys
+APP_ID=io.github.isthatdhruv.ByteKeys
 VERSION=$(PYTHONPATH="$ROOT" python3 -c "import bytekeys; print(bytekeys.__version__)")
 
 mkdir -p "$CACHE" "$OUT"

@@ -9,7 +9,7 @@ umask 022
 
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 VERSION=$(PYTHONPATH="$ROOT" python3 -c "import bytekeys; print(bytekeys.__version__)")
-MAINTAINER=${MAINTAINER:-"ByteKeys Developers <maintainers@bytekeys.invalid>"}
+MAINTAINER=${MAINTAINER:-"ByteKeys Developers <isthatdhruv@users.noreply.github.com>"}
 OUT=${OUT:-$ROOT/dist}
 PKG=$ROOT/build/deb/bytekeys_${VERSION}_all
 

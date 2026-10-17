@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
-  <id>io.github.bytekeys.ByteKeys</id>
+  <id>io.github.isthatdhruv.ByteKeys</id>
   <name>ByteKeys</name>
   <summary>Control your laptop keyboard backlight and RGB lighting</summary>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-3.0-or-later</project_license>
-  <developer id="io.github.bytekeys">
+  <developer id="io.github.isthatdhruv">
     <name>The ByteKeys contributors</name>
   </developer>
   <description>
@@ -22,9 +22,9 @@
       <li>Works with kernel drivers, common USB lighting controllers and OpenRGB</li>
     </ul>
   </description>
-  <launchable type="desktop-id">io.github.bytekeys.ByteKeys.desktop</launchable>
-  <url type="homepage">https://github.com/bytekeys/bytekeys</url>
-  <url type="bugtracker">https://github.com/bytekeys/bytekeys/issues</url>
+  <launchable type="desktop-id">io.github.isthatdhruv.ByteKeys.desktop</launchable>
+  <url type="homepage">https://github.com/isthatdhruv/ByteKeys</url>
+  <url type="bugtracker">https://github.com/isthatdhruv/ByteKeys/issues</url>
   <categories>
     <category>Settings</category>
     <category>HardwareSettings</category>
@@ -49,11 +49,11 @@
   <screenshots>
     <screenshot type="default">
       <caption>Lighting: live preview, modes and colors</caption>
-      <image>https://raw.githubusercontent.com/bytekeys/bytekeys/main/docs/screenshots/lighting-dark.png</image>
+      <image>https://raw.githubusercontent.com/isthatdhruv/ByteKeys/main/docs/screenshots/lighting-dark.png</image>
     </screenshot>
     <screenshot>
       <caption>Rules: automatic lighting</caption>
-      <image>https://raw.githubusercontent.com/bytekeys/bytekeys/main/docs/screenshots/rules-dark.png</image>
+      <image>https://raw.githubusercontent.com/isthatdhruv/ByteKeys/main/docs/screenshots/rules-dark.png</image>
     </screenshot>
   </screenshots>
   <content_rating type="oars-1.1"/>

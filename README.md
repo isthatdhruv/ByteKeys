@@ -11,8 +11,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/bytekeys/bytekeys/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/bytekeys/bytekeys?color=5a7dff"></a>
-  <a href="https://github.com/bytekeys/bytekeys/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/bytekeys/bytekeys/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/isthatdhruv/ByteKeys/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/isthatdhruv/ByteKeys?color=5a7dff"></a>
+  <a href="https://github.com/isthatdhruv/ByteKeys/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/isthatdhruv/ByteKeys/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="License: GPL-3.0-or-later" src="https://img.shields.io/badge/license-GPL--3.0--or--later-a06cff"></a>
 </p>
 
@@ -55,7 +55,7 @@
 ## Install
 
 Download the latest `.deb` or `.AppImage` from the
-[releases page](https://github.com/bytekeys/bytekeys/releases/latest).
+[releases page](https://github.com/isthatdhruv/ByteKeys/releases/latest).
 
 **Debian, Ubuntu, Linux Mint, Pop!_OS, Zorin** (includes the background service):
 
@@ -77,7 +77,7 @@ color control and background rules; it asks for your password once and installs 
 **From source** (Python 3.10+, PyQt6 or PySide6):
 
 ```bash
-git clone https://github.com/bytekeys/bytekeys.git && cd bytekeys
+git clone https://github.com/isthatdhruv/ByteKeys.git && cd ByteKeys
 make run            # control panel from the source tree
 sudo make install   # install to /usr/local and start the service
 ```
@@ -134,7 +134,7 @@ your desktop settings to control laptops whose Fn keys do not reach the backligh
 *Experimental* drivers implement documented protocols (see [docs/SUPPORTED_HARDWARE.md](docs/SUPPORTED_HARDWARE.md))
 but have not been confirmed on that hardware yet. Reports are very welcome! If your keyboard is not
 detected, open **System → Copy report** and
-[open an issue](https://github.com/bytekeys/bytekeys/issues/new?template=device_support.yml).
+[open an issue](https://github.com/isthatdhruv/ByteKeys/issues/new?template=device_support.yml).
 
 ## How it works
 

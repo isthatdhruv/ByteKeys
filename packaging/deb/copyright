@@ -1,6 +1,6 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: ByteKeys
-Source: https://github.com/bytekeys/bytekeys
+Source: https://github.com/isthatdhruv/ByteKeys
 
 Files: *
 Copyright: 2026 The ByteKeys contributors

@@ -49,11 +49,11 @@ uninstall:
 	rm -rf "$(DESTDIR)$(PREFIX)/lib/bytekeys"
 	rm -f "$(DESTDIR)$(PREFIX)/bin/bytekeys" "$(DESTDIR)$(PREFIX)/bin/bytekeys-gui" "$(DESTDIR)$(PREFIX)/sbin/bytekeysd"
 	rm -f "$(DESTDIR)/etc/systemd/system/bytekeysd.service"
-	rm -f "$(DESTDIR)$(PREFIX)/share/applications/io.github.bytekeys.ByteKeys.desktop"
-	rm -f "$(DESTDIR)$(PREFIX)/share/metainfo/io.github.bytekeys.ByteKeys.metainfo.xml"
+	rm -f "$(DESTDIR)$(PREFIX)/share/applications/io.github.isthatdhruv.ByteKeys.desktop"
+	rm -f "$(DESTDIR)$(PREFIX)/share/metainfo/io.github.isthatdhruv.ByteKeys.metainfo.xml"
 	rm -f "$(DESTDIR)$(PREFIX)/share/man/man1/bytekeys.1.gz" "$(DESTDIR)$(PREFIX)/share/man/man1/bytekeys-gui.1.gz" \
 		"$(DESTDIR)$(PREFIX)/share/man/man8/bytekeysd.8.gz"
-	find "$(DESTDIR)$(PREFIX)/share/icons/hicolor" -name 'io.github.bytekeys.ByteKeys.*' -delete
+	find "$(DESTDIR)$(PREFIX)/share/icons/hicolor" -name 'io.github.isthatdhruv.ByteKeys.*' -delete
 	-systemctl daemon-reload
 
 clean:

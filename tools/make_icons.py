@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regenerate every ByteKeys logo asset from data/icons/io.github.bytekeys.ByteKeys.svg.
+"""Regenerate every ByteKeys logo asset from data/icons/io.github.isthatdhruv.ByteKeys.svg.
 
 Two steps, because they need different toolkits:
 
@@ -20,7 +20,7 @@ import struct
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ICON = os.path.join(ROOT, "data/icons/io.github.bytekeys.ByteKeys.svg")
+ICON = os.path.join(ROOT, "data/icons/io.github.isthatdhruv.ByteKeys.svg")
 BRAND = os.path.join(ROOT, "data/branding")
 WEB = os.path.join(BRAND, "web")
 

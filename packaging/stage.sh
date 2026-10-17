@@ -12,7 +12,7 @@ PREFIX=${2:-/usr}
 UNITDIR=${3:-$PREFIX/lib/systemd/system}
 PYTHON=${PYTHON:-/usr/bin/python3}
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-APP_ID=io.github.bytekeys.ByteKeys
+APP_ID=io.github.isthatdhruv.ByteKeys
 LIB=$PREFIX/lib/bytekeys
 
 install -d "$DEST$LIB" "$DEST$PREFIX/bin" "$DEST$PREFIX/sbin" "$DEST$UNITDIR"

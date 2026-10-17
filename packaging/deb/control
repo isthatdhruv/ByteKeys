@@ -8,7 +8,7 @@ Recommends: pkexec | policykit-1, qt6-wayland
 Suggests: openrgb
 Section: utils
 Priority: optional
-Homepage: https://github.com/bytekeys/bytekeys
+Homepage: https://github.com/isthatdhruv/ByteKeys
 Description: keyboard backlight and RGB lighting control for laptops
  ByteKeys controls the keyboard lighting of Linux laptops: white backlights
  as well as single-zone, multi-zone and per-key RGB keyboards. It detects the
