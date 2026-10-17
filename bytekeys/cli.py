@@ -21,6 +21,9 @@ EPILOG = """examples:
   bytekeys effect wave --speed 70       rainbow wave
   bytekeys profile apply Night          switch profile
   bytekeys flash --color red --count 3  blink (e.g. from a notification script)
+  bytekeys perf performance             performance mode (quiet, balanced, performance...)
+  bytekeys fans                         fan speeds, temperatures and fan curves
+  bytekeys charge-limit 80              stop charging at 80 %
 """
 
 
@@ -329,6 +332,81 @@ def cmd_settings(client, args) -> int:
     return 0
 
 
+def _temp(value) -> str:
+    return "–" if value is None else f"{value:.0f} °C"
+
+
+def cmd_perf(client, args) -> int:
+    info = client.call("power_profile", profile=args.mode) if args.mode else client.call("power")
+    if args.json:
+        _print_json(info)
+        return 0
+    profiles = info.get("profiles") or []
+    if not profiles:
+        print("Performance modes: not available on this laptop (no ACPI platform profile)")
+    else:
+        names = [f"[{p['name']}]" if p["id"] == info.get("profile") else p["name"] for p in profiles]
+        print("Performance mode: " + "  ".join(names))
+        print("Modes: " + ", ".join(p["id"] for p in profiles))
+    if info.get("access"):
+        print(f"! {info['access']}")
+    return 0
+
+
+def cmd_fans(client, args) -> int:
+    action, target = args.action, args.fan
+    if action == "boost":
+        if target not in ("on", "off"):
+            print("bytekeys: use 'fans boost on' or 'fans boost off'", file=sys.stderr)
+            return 2
+        client.call("fan_boost", on=target == "on")
+    elif action in ("reset", "custom", "firmware"):
+        if not target:
+            print(f"bytekeys: which fan? e.g. 'fans {action} 1'", file=sys.stderr)
+            return 2
+        if action == "reset":
+            client.call("fan_curve_reset", fan=target)
+        else:
+            client.call("fan_curve", fan=target, points=None, enabled=action == "custom")
+    info, mon = client.call("power"), client.call("monitor")
+    if args.json:
+        _print_json({"power": info, "monitor": mon})
+        return 0
+    print(f"CPU {_temp(mon.get('cpu_temp'))}   GPU {_temp(mon.get('gpu_temp'))}"
+          + ("  (asleep)" if mon.get("gpu_note") == "sleeping" else ""))
+    for fan in mon.get("fans") or []:
+        print(f"{fan['label']:10} {fan['rpm'] or 0:>6,} RPM")
+    if not mon.get("fans"):
+        print("No fan sensors found.")
+    for curve in info.get("curves") or []:
+        state = "custom curve" if curve["enabled"] else "firmware curve"
+        points = "  ".join(f"{t}°:{pct}%" for t, pct in curve["points"])
+        print(f"{curve['label']} (fan {curve['fan']}): {state}\n  {points}")
+    if info.get("boost") is not None:
+        print(f"Full fan speed: {'on' if info['boost']['on'] else 'off'}")
+    if not info.get("write_access") and (info.get("curves") or info.get("boost")):
+        print("! Changing fans needs the ByteKeys service (or root).")
+    return 0
+
+
+def cmd_charge_limit(client, args) -> int:
+    info = client.call("charge_limit", limit=args.limit) if args.limit is not None else client.call("power")
+    charge = info.get("charge")
+    if args.json:
+        _print_json(charge)
+    elif charge is None:
+        print("This laptop has no battery charge limit that Linux can set.")
+    else:
+        if charge["kind"] == "conservation":
+            print("Charge limit: " + ("conservation mode (the firmware's fixed level)" if charge["limit"] < 100
+                                      else "off (charges to 100%)"))
+        else:
+            print(f"Charge limit: {charge['limit']}%")
+        if not info.get("write_access"):
+            print("! Changing it needs the ByteKeys service (or root).")
+    return 0
+
+
 def cmd_report(client, args) -> int:
     print(client.call("report"), end="")
     return 0
@@ -342,14 +420,14 @@ def cmd_rescan(client, args) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
-        prog="bytekeys", description=f"{APP_NAME}: keyboard lighting control for Linux laptops",
+        prog="bytekeys", description=f"{APP_NAME}: keyboard lighting, fans and performance for Linux laptops",
         epilog=EPILOG, formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     ap.add_argument("--version", action="version", version=f"{APP_NAME} {__version__}")
     ap.add_argument("--json", action="store_true", help="machine readable output")
     ap.add_argument("-v", "--verbose", action="store_true", help="debug logging")
     ap.add_argument("--local", action="store_true", help="do not use the service (portable mode)")
-    ap.add_argument("--demo", action="store_true", help="add simulated keyboards (portable mode)")
+    ap.add_argument("--demo", action="store_true", help="add simulated keyboards and fans (portable mode)")
     ap.add_argument("--socket", default=ipc.SOCKET_PATH, help=argparse.SUPPRESS)
     sub = ap.add_subparsers(dest="command", metavar="COMMAND")
 
@@ -396,9 +474,16 @@ def build_parser() -> argparse.ArgumentParser:
     add("sensors", cmd_sensors, "show sensor readings used by rules", device=False)
     p = add("settings", cmd_settings, "show or change settings (key=value)", device=False)
     p.add_argument("pairs", nargs="*")
+    p = add("perf", cmd_perf, "show or set the performance mode", device=False)
+    p.add_argument("mode", nargs="?", help="quiet, balanced, performance... (see 'bytekeys perf')")
+    p = add("fans", cmd_fans, "fan speeds and curves; boost on|off, reset/custom/firmware FAN", device=False)
+    p.add_argument("action", nargs="?", choices=["status", "boost", "reset", "custom", "firmware"], default="status")
+    p.add_argument("fan", nargs="?", help="fan number (1 = CPU, 2 = GPU), or on/off for boost")
+    p = add("charge-limit", cmd_charge_limit, "show or set the battery charge limit (percent)", device=False)
+    p.add_argument("limit", nargs="?", type=int)
     add("report", cmd_report, "print a diagnostic report", device=False)
     add("rescan", cmd_rescan, "look for keyboards again", device=False)
-    sub.add_parser("gui", help="open the control panel")
+    sub.add_parser("gui", help="open the control center")
     p = sub.add_parser("service", help="install, remove or check the system service")
     p.add_argument("action", choices=["install", "uninstall", "status"])
     sub.add_parser("daemon", help="run the system service in the foreground", add_help=False)

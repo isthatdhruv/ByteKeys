@@ -1,20 +1,33 @@
-.TH BYTEKEYS-GUI 1 "October 2026" "ByteKeys 1.0.0" "User Commands"
+.TH BYTEKEYS-GUI 1 "October 2026" "ByteKeys 1.1.0" "User Commands"
 .SH NAME
-bytekeys-gui \- ByteKeys keyboard lighting control panel
+bytekeys-gui \- ByteKeys control center for keyboard lighting, fans and performance
 .SH SYNOPSIS
 .B bytekeys-gui
-[\fB\-\-minimized\fR] [\fB\-\-demo\fR] [\fB\-\-local\fR]
+[\fB\-\-minimized\fR] [\fB\-\-page\fR \fIPAGE\fR] [\fB\-\-demo\fR] [\fB\-\-local\fR]
 .SH DESCRIPTION
-Opens the ByteKeys control panel: brightness, colors, effects, automation
-rules and profiles for the keyboard lighting of this laptop. It also adds a
-tray icon with quick controls.
+Opens the ByteKeys control center: live temperatures and fan speeds,
+performance modes, firmware fan curves, the battery charge limit, and the
+brightness, colors, effects, automations and profiles of the keyboard lighting.
+It also adds a tray icon with quick controls. Only one instance runs; starting
+it again brings the window to the front, so the laptop's vendor "launch key"
+(Armoury Crate, NitroSense, OMEN...) can open it through a desktop shortcut.
 .SH OPTIONS
 .TP
 .B \-\-minimized
-Start hidden in the tray (used when started at login).
+Start hidden in the background (used when started at login).
+.TP
+.BI \-\-page " PAGE"
+Open
+.BR home ,
+.BR lighting ,
+.BR performance ,
+.BR automation ,
+.B profiles
+or
+.BR settings .
 .TP
 .B \-\-demo
-Add simulated keyboards.
+Add simulated keyboards and fans.
 .TP
 .B \-\-local
 Do not use the bytekeysd service (portable mode).

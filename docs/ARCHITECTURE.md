@@ -1,7 +1,7 @@
 # Architecture
 
 ByteKeys is plain Python 3.10+. The service and the command line tool use only the standard library;
-the control panel adds Qt 6 (PySide6 or PyQt6).
+the control center adds Qt 6 (PySide6 or PyQt6).
 
 ```
 bytekeys/
@@ -21,15 +21,24 @@ bytekeys/
 │   ├── effects.py       software effects (frame generators)
 │   ├── rules.py         automation rules: triggers, actions, validation
 │   ├── sensors.py       power, battery, CPU temperature/load, Caps Lock, ambient light, idle
-│   ├── inputwatch.py    input activity (timestamps only) for idle rules and Reactive
+│   ├── inputwatch.py    input activity (timestamps only) for idle rules and Reactive; the launch key
 │   └── state.py         validation of everything clients send
 ├── ipc.py               JSON-lines RPC over a Unix socket + SocketClient / LocalClient
 ├── daemon.py            bytekeysd
 ├── cli.py               bytekeys
 ├── service.py           install the service from a source tree or the AppImage
+├── power.py             performance modes, fans, firmware fan curves, charge limit, temperatures
 ├── modes.py             quick modes (Static/Breathing/Color cycle...) shared by GUI and CLI
-├── models.py            known laptop families and advice
-└── gui/                 Qt control panel (pages, widgets, tray, theme)
+├── models.py            known laptop families, advice and vendor launch keys
+└── gui/                 Qt control center
+    ├── app.py           main window, sidebar navigation, toasts, single instance
+    ├── bridge.py        keeps the GUI in sync with the engine (events, live monitoring)
+    ├── pages/           home, lighting, performance, automation, profiles, settings
+    ├── widgets/         kit (cards, gauges, tiles, sliders, color wheel), fan curve editor, keyboard preview
+    ├── shortcuts.py     GNOME / KDE shortcut for the launch key
+    ├── launchkey.py     "press the key" detection
+    ├── icons.py, theme.py
+    └── tray.py
 ```
 
 ## Devices and frames
@@ -58,12 +67,30 @@ The engine keeps, per device, the user's chosen state (`states`) and the *effect
    the others,
 5. polls hardware brightness to follow Fn keys (adopting the change and pausing rules that overrode
    brightness until they stop applying),
-6. notices resume from suspend (CLOCK_BOOTTIME vs CLOCK_MONOTONIC) and re-applies everything,
+6. notices resume from suspend (CLOCK_BOOTTIME vs CLOCK_MONOTONIC) and re-applies everything (lighting,
+   fan curves, charge limit), and notices performance mode changes made elsewhere (Fn keys, the desktop),
 7. rescans when LED or hidraw devices appear or disappear,
 8. saves state to `/var/lib/bytekeys/state.json` (portable mode: `~/.local/state/bytekeys`).
 
 Nothing is written to a device until the user changes something or saved state is restored, so merely
 running ByteKeys never alters the lighting.
+
+## Performance and fans
+
+`power.py` reads and writes firmware-managed controls only: the platform profile (through
+power-profiles-daemon when it runs), ASUS firmware fan curves, ASUS full fan speed and the battery charge
+limit. Fan curves are validated before they reach the kernel. The engine stores curves per performance
+mode in `state.json`, writes enabled curves last (switching any fan back to firmware control resets all
+of them), re-applies them after mode changes, boot and resume, and checks every second that enabled
+curves are still active. See [SUPPORTED_HARDWARE.md](SUPPORTED_HARDWARE.md#performance-modes-fans-and-battery).
+
+## Launch key
+
+`inputwatch.py` compares key presses with one configured code (`settings.launch_key`, defaulting to the
+laptop's vendor key from `models.py`) and emits a `launch` event that brings the control center to the
+front. While the user asks to detect a key, it accepts only an allowlist of special keys. The GUI can also
+detect the key from its own key events, and adds a desktop shortcut so the key starts ByteKeys when it
+is closed.
 
 ## Rules
 

@@ -1,13 +1,13 @@
 [Desktop Entry]
 Type=Application
 Name=ByteKeys
-GenericName=Keyboard Lighting
-Comment=Control your laptop keyboard backlight and RGB lighting
+GenericName=Laptop Control Center
+Comment=Keyboard lighting, fans and performance modes for your laptop
 Exec=bytekeys-gui %U
 Icon=io.github.isthatdhruv.ByteKeys
 Terminal=false
 Categories=Settings;HardwareSettings;
-Keywords=keyboard;backlight;rgb;led;lighting;laptop;brightness;
+Keywords=keyboard;backlight;rgb;led;lighting;laptop;brightness;fan;performance;battery;armoury;control center;
 StartupNotify=true
 StartupWMClass=bytekeys
 SingleMainWindow=true

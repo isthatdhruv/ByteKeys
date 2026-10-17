@@ -10,13 +10,14 @@ import sys
 from .. import APP_ID, APP_NAME
 
 DEFAULTS = {
-    "theme": "system",          # system | light | dark
+    "theme": "dark",            # dark | light | system
     "tray": True,
     "close_to_tray": True,
     "keyboard_layout": "auto",  # auto | compact | full
-    "last_page": 0,
+    "last_page": "home",
     "last_device": None,
     "geometry": None,
+    "launch_key_last": 0,       # the launch key to use when it is switched back on
 }
 
 
@@ -60,16 +61,18 @@ def autostart_path() -> str:
     return os.path.join(base, "autostart", f"{APP_ID}.desktop")
 
 
-def launch_command() -> str:
+def launch_command(minimized: bool = True) -> str:
+    """The command that starts this copy of ByteKeys (AppImage, package or source tree)."""
+    flag = " --minimized" if minimized else ""
     appimage = os.environ.get("APPIMAGE")
     if appimage:
-        return f"{shlex.quote(appimage)} --minimized"
+        return f"{shlex.quote(appimage)}{flag}"
     for candidate in ("/usr/bin/bytekeys-gui", "/usr/local/bin/bytekeys-gui"):
         if os.path.exists(candidate):
-            return f"{candidate} --minimized"
+            return f"{candidate}{flag}"
     package_parent = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     return (f"env PYTHONPATH={shlex.quote(package_parent)} {shlex.quote(sys.executable)} "
-            f"-m bytekeys gui --minimized")
+            f"-m bytekeys gui{flag}")
 
 
 def autostart_enabled() -> bool:

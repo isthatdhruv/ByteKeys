@@ -1,6 +1,6 @@
-.TH BYTEKEYS 1 "October 2026" "ByteKeys 1.0.0" "User Commands"
+.TH BYTEKEYS 1 "October 2026" "ByteKeys 1.1.0" "User Commands"
 .SH NAME
-bytekeys \- control laptop keyboard backlight and RGB lighting
+bytekeys \- control laptop keyboard lighting, fans and performance modes
 .SH SYNOPSIS
 .B bytekeys
 [\fB\-\-json\fR] [\fB\-\-local\fR] [\fB\-\-demo\fR]
@@ -11,8 +11,9 @@ bytekeys \- control laptop keyboard backlight and RGB lighting
 [\fB\-\-minimized\fR] [\fB\-\-demo\fR]
 .SH DESCRIPTION
 .B ByteKeys
-controls the keyboard lighting of Linux laptops: single-color backlights and
-single-zone, multi-zone or per-key RGB keyboards. It talks to the
+controls the keyboard lighting of Linux laptops (single-color backlights and
+single-zone, multi-zone or per-key RGB keyboards), their performance modes,
+firmware fan curves and battery charge limit. It talks to the
 .B bytekeysd
 system service when it is running and otherwise drives the hardware directly
 ("portable mode", limited to what the current user may change).
@@ -65,6 +66,28 @@ Blink the keyboard
 .BR \-\-period ),
 e.g. from a notification script.
 .TP
+.BR perf " [MODE]"
+Show the performance modes the firmware offers, or switch to
+.I MODE
+(for example
+.BR quiet ,
+.B balanced
+or
+.BR performance ).
+.TP
+.BR fans " [boost on|off | custom FAN | firmware FAN | reset FAN]"
+Show temperatures, fan speeds and fan curves. Switch full fan speed on or off,
+turn a fan's saved custom curve on
+.RB ( custom )
+or hand the fan back to the firmware's curve
+.RB ( firmware ),
+or forget the custom curve
+.RB ( reset ).
+Curves are edited in the control center; FAN 1 is the CPU fan, 2 the GPU fan.
+.TP
+.BR charge-limit " [PERCENT]"
+Show or set the battery charge limit.
+.TP
 .B sensors
 Show the readings automation rules use.
 .TP
@@ -78,7 +101,7 @@ Look for keyboards again.
 Install or remove the system service (for source checkouts and the AppImage).
 .TP
 .B gui
-Open the control panel.
+Open the control center.
 .SH OPTIONS
 .TP
 .BI \-d " DEVICE" "\fR, \fP\-\-device " DEVICE
@@ -91,11 +114,11 @@ Machine readable output.
 Do not use the service.
 .TP
 .B \-\-demo
-Add simulated keyboards.
+Add simulated keyboards and fans.
 .SH FILES
 .TP
 .I /var/lib/bytekeys/state.json
-Lighting, rules and profiles stored by the service.
+Lighting, rules, profiles, fan curves and settings stored by the service.
 .TP
 .I ~/.local/state/bytekeys/state.json
 The same, in portable mode.
@@ -109,6 +132,9 @@ bytekeys color "#ff8800"
 bytekeys effect wave \-\-speed 70
 bytekeys profile apply Night
 bytekeys flash \-\-color red \-\-count 3
+bytekeys perf performance
+bytekeys fans boost on
+bytekeys charge\-limit 80
 .fi
 .SH SEE ALSO
 .BR openrgb (1)

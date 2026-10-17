@@ -29,6 +29,7 @@ DEFAULT_SETTINGS: dict = {
     "openrgb_host": "127.0.0.1",
     "openrgb_port": 6742,
     "openrgb_all_devices": False,
+    "launch_key": 0,          # evdev code of the vendor app key that opens ByteKeys (0 = off)
 }
 
 MAX_ZONES = 512
@@ -150,6 +151,8 @@ def clean_settings(changes: dict, current: dict) -> dict:
             out[key] = as_int(value, 5, 60)
         elif key == "openrgb_port":
             out[key] = as_int(value, 1, 65535)
+        elif key == "launch_key":
+            out[key] = as_int(value, 0, 767)
         elif key == "openrgb_host":
             host = str(value).strip()
             if not re.fullmatch(r"[A-Za-z0-9.\-:\[\]]{1,253}", host):

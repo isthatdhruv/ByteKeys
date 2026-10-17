@@ -9,17 +9,21 @@ Suggests: openrgb
 Section: utils
 Priority: optional
 Homepage: https://github.com/isthatdhruv/ByteKeys
-Description: keyboard backlight and RGB lighting control for laptops
- ByteKeys controls the keyboard lighting of Linux laptops: white backlights
- as well as single-zone, multi-zone and per-key RGB keyboards. It detects the
- laptop and its keyboard automatically and configures itself.
+Description: control center for laptop keyboard lighting, fans and performance
+ ByteKeys is a control center for Linux laptops, like the vendor apps on
+ Windows (Armoury Crate, NitroSense, OMEN Gaming Hub). It controls the keyboard
+ lighting (white backlights as well as single-zone, multi-zone and per-key RGB
+ keyboards), performance modes, firmware fan curves and the battery charge
+ limit, and detects the laptop and its keyboard automatically.
  .
- Features: brightness, colors, zones and per-key colors; software and
- hardware effects; automation rules (dim on battery, off when idle, low
- battery and overheat warnings, Caps Lock indicator, schedules); profiles;
- a tray icon and a command line tool.
+ Features: live temperatures and fan speeds; performance modes synced with
+ power-profiles-daemon; custom fan curves per mode (ASUS); full fan speed;
+ battery charge limits; brightness, colors, zones and per-key colors;
+ software and hardware effects; automations (dim on battery, off when idle,
+ low battery and overheat warnings, Caps Lock indicator, schedules); profiles;
+ the vendor launch key opens ByteKeys; a tray icon and a command line tool.
  .
  Hardware is reached through kernel drivers (asus-wmi, thinkpad_acpi,
  dell-laptop, system76_acpi, tuxedo-drivers and others), common USB lighting
  controllers, and OpenRGB. A small system service (bytekeysd) does the
- privileged work so the control panel runs as a normal user.
+ privileged work so the control center runs as a normal user.

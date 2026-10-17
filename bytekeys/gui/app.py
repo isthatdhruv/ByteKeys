@@ -1,4 +1,4 @@
-"""ByteKeys control panel: main window and entry point."""
+"""ByteKeys control center: main window and entry point."""
 
 from __future__ import annotations
 
@@ -9,40 +9,103 @@ import signal
 import sys
 
 from .. import APP_ID, APP_NAME, __version__, service
-from . import theme
+from . import icons, theme
 from .bridge import Bridge
-from .pages.effects import EffectsPage
-from .pages.lighting import LightingPage
-from .pages.profiles import ProfilesPage
-from .pages.rules import RulesPage
-from .pages.system import SystemPage
-from .prefs import Prefs
+from .prefs import Prefs, autostart_enabled
 from .qt import API, QtCore, QtGui, QtNetwork, QtWidgets, Qt, Signal
 from .tray import Tray
-from .widgets.common import label, repolish
+from .widgets.sidebar import Sidebar
 
 log = logging.getLogger(__name__)
 ASSETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
 INSTANCE_NAME = f"bytekeys-gui-{os.getuid()}"
 
-NAV = [("◐", "Lighting"), ("✦", "Effects"), ("⚡", "Rules"), ("▤", "Profiles"), ("⚙", "System")]
+# (key, icon, label)
+PAGES = [
+    ("home", "home", "Home"),
+    ("lighting", "keyboard", "Lighting"),
+    ("performance", "fan", "Performance"),
+    ("automation", "bolt", "Automation"),
+    ("profiles", "layers", "Profiles"),
+    ("settings", "gear", "Settings"),
+]
+PAGE_KEYS = [key for key, _icon, _label in PAGES]
 
 
 def app_icon() -> QtGui.QIcon:
-    icon = QtGui.QIcon.fromTheme(APP_ID)
+    icon = QtGui.QIcon()
+    for size in (32, 64, 128, 256):
+        path = os.path.join(ASSETS, f"bytekeys-{size}.png")
+        if os.path.exists(path):
+            icon.addFile(path, QtCore.QSize(size, size))
     if icon.isNull():
-        icon = QtGui.QIcon()
-        for size in (32, 64, 128, 256):
-            path = os.path.join(ASSETS, f"bytekeys-{size}.png")
-            if os.path.exists(path):
-                icon.addFile(path, QtCore.QSize(size, size))
+        icon = QtGui.QIcon.fromTheme(APP_ID)
     return icon
+
+
+class Toast(QtWidgets.QWidget):
+    """Short message that fades in at the bottom of the window."""
+
+    def __init__(self, parent: QtWidgets.QWidget):
+        super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.text = ""
+        self.error = False
+        self._effect = QtWidgets.QGraphicsOpacityEffect(self)
+        self._effect.setOpacity(0.0)
+        self.setGraphicsEffect(self._effect)
+        self._anim = QtCore.QPropertyAnimation(self._effect, b"opacity", self)
+        self._anim.setDuration(180)
+        self._anim.finished.connect(self._finished)
+        self._timer = QtCore.QTimer(self)
+        self._timer.setSingleShot(True)
+        self._timer.timeout.connect(lambda: self._fade(0.0))
+        self.hide()
+
+    def show_message(self, text: str, error: bool = False, left: int = 0) -> None:
+        self.text, self.error = text, error
+        parent = self.parentWidget()
+        fm = QtGui.QFontMetrics(theme.font(10, 600))
+        width = min(fm.horizontalAdvance(text) + 76, parent.width() - left - 48)
+        self.resize(max(220, width), 46)
+        self.move(left + (parent.width() - left - self.width()) // 2, parent.height() - self.height() - 26)
+        self.raise_()
+        self.show()
+        self.update()
+        self._fade(1.0)
+        self._timer.start(4800 if error else 2600)
+
+    def _fade(self, target: float) -> None:
+        self._anim.stop()
+        self._anim.setStartValue(self._effect.opacity())
+        self._anim.setEndValue(target)
+        self._anim.start()
+
+    def _finished(self) -> None:
+        if self._effect.opacity() < 0.05:
+            self.hide()
+
+    def paintEvent(self, _event) -> None:  # noqa: N802
+        p = QtGui.QPainter(self)
+        p.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+        r = QtCore.QRectF(self.rect()).adjusted(1, 1, -1, -1)
+        p.setPen(QtGui.QPen(theme.c("bad" if self.error else "border_hi"), 1))
+        p.setBrush(theme.c("surface2"))
+        p.drawRoundedRect(r, r.height() / 2, r.height() / 2)
+        tone = theme.c("bad") if self.error else theme.c("glow")
+        icons.paint(p, "warning" if self.error else "check", QtCore.QRectF(r.left() + 16, r.center().y() - 9, 18, 18),
+                    tone, 2.2)
+        p.setPen(theme.c("text"))
+        f = theme.font(10, 600)
+        p.setFont(f)
+        text = QtGui.QFontMetrics(f).elidedText(self.text, Qt.TextElideMode.ElideRight, int(r.width() - 64))
+        p.drawText(r.adjusted(44, 0, -18, 0), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, text)
 
 
 class MainWindow(QtWidgets.QMainWindow):
     deviceSelected = Signal(str)
 
-    def __init__(self, bridge: Bridge, prefs: Prefs, app: QtWidgets.QApplication):
+    def __init__(self, bridge: Bridge, prefs: Prefs, app: QtWidgets.QApplication, start_page: str | None = None):
         super().__init__()
         self.bridge = bridge
         self.prefs = prefs
@@ -50,83 +113,104 @@ class MainWindow(QtWidgets.QMainWindow):
         self._device_id: str | None = prefs["last_device"]
         self._service_status = service.status()
         self._quitting = False
+        self.pages: dict = {}
         self.setWindowTitle(APP_NAME)
         self.setWindowIcon(app_icon())
-        self.setMinimumSize(900, 620)
+        self.setMinimumSize(1040, 700)
+
+        self.tray = Tray(self)
+        self.tray.set_visible(bool(prefs["tray"]) and Tray.available())
+        self._build()
+
+        bridge.devicesChanged.connect(self._on_devices)
+        bridge.connectionChanged.connect(self._on_connection)
+        bridge.errorOccurred.connect(lambda msg: self.toast(msg, error=True))
+        bridge.profileApplied.connect(lambda name: self.toast(f"Profile “{name}” applied"))
+        bridge.launchRequested.connect(self.on_launch_key)
+
+        geometry = prefs["geometry"]
+        if geometry:
+            self.restoreGeometry(QtCore.QByteArray.fromBase64(geometry.encode()))
+        else:
+            self.resize(1240, 840)
+        self._on_devices()
+        self._on_connection()
+        self.go(start_page or prefs["last_page"])
+
+    # ---------------------------------------------------------------- build
+    def _build(self) -> None:
+        from .pages.automation import AutomationPage
+        from .pages.home import HomePage
+        from .pages.lighting import LightingPage
+        from .pages.performance import PerformancePage
+        from .pages.profiles import ProfilesPage
+        from .pages.settings import SettingsPage
 
         root = QtWidgets.QWidget()
         root.setObjectName("root")
         h = QtWidgets.QHBoxLayout(root)
         h.setContentsMargins(0, 0, 0, 0)
         h.setSpacing(0)
-        self.setCentralWidget(root)
-
-        side = QtWidgets.QFrame()
-        side.setObjectName("sidebar")
-        side.setFixedWidth(236)
-        sv = QtWidgets.QVBoxLayout(side)
-        sv.setContentsMargins(16, 18, 16, 16)
-        sv.setSpacing(12)
-        brand = QtWidgets.QHBoxLayout()
-        logo = QtWidgets.QLabel()
-        logo.setPixmap(self.windowIcon().pixmap(36, 36))
-        brand.addWidget(logo)
-        names = QtWidgets.QVBoxLayout()
-        names.setSpacing(0)
-        names.addWidget(label(APP_NAME, "brand"))
-        self.model_label = label("", "brandSub", wrap=True)
-        names.addWidget(self.model_label)
-        brand.addLayout(names, 1)
-        sv.addLayout(brand)
-        self.device_combo = QtWidgets.QComboBox()
-        self.device_combo.currentIndexChanged.connect(self._on_device_combo)
-        sv.addWidget(self.device_combo)
-        self.nav = QtWidgets.QListWidget()
-        self.nav.setObjectName("navList")
-        for icon, name in NAV:
-            QtWidgets.QListWidgetItem(f"{icon}   {name}", self.nav)
-        self.nav.setCursor(Qt.CursorShape.PointingHandCursor)
-        sv.addWidget(self.nav, 1)
-        self.status_button = QtWidgets.QPushButton()
-        self.status_button.setObjectName("statusButton")
-        self.status_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.status_button.setToolTip("Service and system details")
-        self.status_button.clicked.connect(lambda: self.nav.setCurrentRow(4))
-        sv.addWidget(self.status_button)
-        h.addWidget(side)
-
+        self.sidebar = Sidebar(self.windowIcon(), [(icon, label) for _key, icon, label in PAGES])
+        self.sidebar.pageSelected.connect(self._on_nav)
+        self.sidebar.statusClicked.connect(lambda: self.go("settings"))
+        h.addWidget(self.sidebar)
         self.stack = QtWidgets.QStackedWidget()
         h.addWidget(self.stack, 1)
-        self.pages = [LightingPage(self), EffectsPage(self), RulesPage(self), ProfilesPage(self), SystemPage(self)]
-        for page in self.pages:
-            self.stack.addWidget(page)
-        self.nav.currentRowChanged.connect(self._on_nav)
+        classes = {"home": HomePage, "lighting": LightingPage, "performance": PerformancePage,
+                   "automation": AutomationPage, "profiles": ProfilesPage, "settings": SettingsPage}
+        self.pages = {}
+        for key in PAGE_KEYS:
+            self.pages[key] = classes[key](self)
+            self.stack.addWidget(self.pages[key])
+        self.setCentralWidget(root)
+        self.toast_widget = Toast(root)
 
-        self.toast_label = QtWidgets.QLabel(root)
-        self.toast_label.setObjectName("pill")
-        self.toast_label.setProperty("tone", "accent")
-        self.toast_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.toast_label.hide()
-        self._toast_timer = QtCore.QTimer(self)
-        self._toast_timer.setSingleShot(True)
-        self._toast_timer.timeout.connect(self.toast_label.hide)
-
-        self.tray = Tray(self)
-        self.tray.set_visible(bool(prefs["tray"]) and Tray.available())
-
-        bridge.devicesChanged.connect(self._on_devices)
-        bridge.connectionChanged.connect(self._on_connection)
-        bridge.errorOccurred.connect(lambda msg: self.toast(msg, error=True))
-        bridge.profileApplied.connect(lambda name: self.toast(f"Profile “{name}” applied"))
-
-        geometry = prefs["geometry"]
-        if geometry:
-            self.restoreGeometry(QtCore.QByteArray.fromBase64(geometry.encode()))
-        else:
-            self.resize(1100, 780)
+    def rebuild(self) -> None:
+        """Recreate every page (after a theme change)."""
+        current = self.current_page_key()
+        for page in self.pages.values():
+            page.on_hide()
+            page.detach()
+        self._build()
         self._on_devices()
         self._on_connection()
-        self.nav.setCurrentRow(int(prefs["last_page"] or 0) if self.bridge.order else 4)
+        self.go(current)
+
+    # ---------------------------------------------------------- navigation
+    def current_page_key(self) -> str:
+        idx = self.stack.currentIndex()
+        return PAGE_KEYS[idx] if 0 <= idx < len(PAGE_KEYS) else "home"
+
+    def go(self, key) -> None:
+        if key not in self.pages:
+            key = "home"
+        self._on_nav(PAGE_KEYS.index(key))
+
+    def _on_nav(self, index: int) -> None:
+        if not 0 <= index < len(PAGE_KEYS):
+            return
+        new = self.pages[PAGE_KEYS[index]]
+        old = self.stack.currentWidget()
+        if old is not None and old is not new:
+            old.on_hide()
+        self.stack.setCurrentIndex(index)
+        self.sidebar.set_current(index)
+        self.prefs["last_page"] = PAGE_KEYS[index]
+        if self.isVisible():
+            new.on_show()
+
+    def showEvent(self, event) -> None:  # noqa: N802
+        super().showEvent(event)
+        page = self.stack.currentWidget()
+        if page is not None:
+            page.on_show()
+
+    def hideEvent(self, event) -> None:  # noqa: N802
+        super().hideEvent(event)
+        page = self.stack.currentWidget()
+        if page is not None:
+            page.on_hide()
 
     # --------------------------------------------------------------- state
     def current_device(self) -> dict | None:
@@ -136,6 +220,12 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.bridge.order:
             return devices[self.bridge.order[0]]
         return None
+
+    def select_device(self, dev_id: str) -> None:
+        if dev_id and dev_id != self._device_id and dev_id in self.bridge.devices:
+            self._device_id = dev_id
+            self.prefs["last_device"] = dev_id
+            self.deviceSelected.emit(dev_id)
 
     def keyboard_layout(self) -> str:
         choice = self.prefs["keyboard_layout"]
@@ -147,73 +237,48 @@ class MainWindow(QtWidgets.QMainWindow):
         return self._service_status
 
     def _on_devices(self) -> None:
-        self.device_combo.blockSignals(True)
-        self.device_combo.clear()
-        for dev_id in self.bridge.order:
-            self.device_combo.addItem(self.bridge.devices[dev_id]["name"], dev_id)
         dev = self.current_device()
         if dev:
             self._device_id = dev["id"]
-            self.device_combo.setCurrentIndex(max(0, self.device_combo.findData(dev["id"])))
-        self.device_combo.setVisible(len(self.bridge.order) > 1)
-        self.device_combo.blockSignals(False)
-        for page in self.pages:
+        for page in self.pages.values():
             page.refresh()
-
-    def _on_device_combo(self, _index: int) -> None:
-        dev_id = self.device_combo.currentData()
-        if dev_id and dev_id != self._device_id:
-            self._device_id = dev_id
-            self.prefs["last_device"] = dev_id
-            self.deviceSelected.emit(dev_id)
 
     def _on_connection(self) -> None:
         self._service_status = service.status()
-        self.model_label.setText(self.bridge.system.get("model", ""))
+        self.sidebar.model.setText(self.bridge.system.get("model", ""))
         if self.bridge.mode == "service":
-            color, text = theme.colors["good"], "Service running"
+            text, tone = "Service running", "good"
         else:
-            color, text = theme.colors["warn"], "Portable mode"
+            text, tone = "Portable mode", "warn"
         if self.bridge.demo:
             text += " · demo"
-        dot = QtGui.QPixmap(12, 12)
-        dot.fill(Qt.GlobalColor.transparent)
-        painter = QtGui.QPainter(dot)
-        painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QtGui.QColor(color))
-        painter.drawEllipse(1, 1, 10, 10)
-        painter.end()
-        self.status_button.setIcon(QtGui.QIcon(dot))
-        self.status_button.setText(" " + text)
-        for page in self.pages:
+        self.sidebar.set_status(text, tone)
+        for page in self.pages.values():
             page.refresh()
-
-    def _on_nav(self, row: int) -> None:
-        if row < 0:
-            return
-        self.stack.setCurrentIndex(row)
-        self.prefs["last_page"] = row
-        self.pages[row].on_show()
 
     # ------------------------------------------------------------ settings
     def set_theme(self, mode: str) -> None:
         self.prefs["theme"] = mode
         theme.apply(self.app, mode)
-        self._on_connection()
-        for w in self.findChildren(QtWidgets.QWidget):
-            w.update()
+        self.rebuild()
 
     def set_keyboard_layout(self, choice: str) -> None:
         self.prefs["keyboard_layout"] = choice
-        for page in self.pages:
-            if hasattr(page, "keyboard"):
-                page._dev_id = None
-            page.refresh()
+        for page in self.pages.values():
+            page.layout_changed()
 
     def set_tray_enabled(self, on: bool) -> None:
         self.prefs["tray"] = on
         self.tray.set_visible(on and Tray.available())
+
+    def runs_in_background(self) -> bool:
+        """Closing the window keeps ByteKeys running (tray icon or launch key)."""
+        launch = bool(self.bridge.settings.get("launch_key")) and self.bridge.mode == "service"
+        return bool(self.prefs["close_to_tray"]) and (self.tray.icon.isVisible() or launch)
+
+    # ------------------------------------------------------------ launch key
+    def on_launch_key(self) -> None:
+        self.show_window()
 
     # -------------------------------------------------------------- service
     def install_service(self) -> None:
@@ -222,14 +287,16 @@ class MainWindow(QtWidgets.QMainWindow):
         proc = QtCore.QProcess(self)
         if status.get("managed_by_package"):
             proc.setProgram("pkexec")
-            proc.setArguments(["systemctl", "enable", "--now", "bytekeysd.service"])
+            proc.setArguments(["systemctl", "restart", "bytekeysd.service"] if self.bridge.outdated
+                              else ["systemctl", "enable", "--now", "bytekeysd.service"])
         else:
             pkg_parent = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
             env.insert("PYTHONPATH", pkg_parent + os.pathsep + env.value("PYTHONPATH", ""))
             proc.setProgram(sys.executable)
             proc.setArguments(["-m", "bytekeys.service", "install", "--graphical"])
         proc.setProcessEnvironment(env)
-        dialog = QtWidgets.QProgressDialog("Installing the ByteKeys service…\n"
+        verb = "Updating" if self.bridge.outdated else "Installing"
+        dialog = QtWidgets.QProgressDialog(f"{verb} the ByteKeys service…\n"
                                            "Your system will ask for your password.", None, 0, 0, self)
         dialog.setWindowTitle(APP_NAME)
         dialog.setWindowModality(Qt.WindowModality.WindowModal)
@@ -249,9 +316,9 @@ class MainWindow(QtWidgets.QMainWindow):
         proc.start()
 
     def _wait_for_service(self, tries: int) -> None:
-        if self.bridge.switch_to_service():
+        if self.bridge.switch_to_service() and not self.bridge.outdated:
             self._service_status = service.status()
-            self.toast("Service installed: full control enabled")
+            self.toast("Service ready: full control enabled")
             self._on_connection()
             return
         if tries > 0:
@@ -285,16 +352,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     # ---------------------------------------------------------------- misc
     def toast(self, message: str, error: bool = False) -> None:
-        self.toast_label.setText(f"  {message}  ")
-        self.toast_label.setProperty("tone", "warn" if error else "accent")
-        repolish(self.toast_label)
-        self.toast_label.adjustSize()
-        w = min(self.toast_label.sizeHint().width() + 24, self.width() - 280)
-        self.toast_label.setFixedSize(max(200, w), 34)
-        self.toast_label.move(236 + (self.width() - 236 - self.toast_label.width()) // 2, self.height() - 60)
-        self.toast_label.raise_()
-        self.toast_label.show()
-        self._toast_timer.start(4500 if error else 2600)
+        self.toast_widget.show_message(message, error, left=self.sidebar.width())
 
     def show_window(self) -> None:
         self.show()
@@ -310,7 +368,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def closeEvent(self, event) -> None:  # noqa: N802
         self.prefs["geometry"] = bytes(self.saveGeometry().toBase64()).decode()
-        if not self._quitting and self.prefs["close_to_tray"] and self.tray.icon.isVisible():
+        if not self._quitting and self.runs_in_background():
             event.ignore()
             self.hide()
             return
@@ -325,14 +383,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self.app.quit()
 
 
-def _single_instance(app):
+def _single_instance(app, message: bytes):
     """Return a server when we are the first instance, None when another one was told to show."""
     if QtNetwork is None:
         return False   # cannot tell; just run
     sock = QtNetwork.QLocalSocket()
     sock.connectToServer(INSTANCE_NAME)
     if sock.waitForConnected(300):
-        sock.write(b"show\n")
+        sock.write(message + b"\n")
         sock.flush()
         sock.waitForBytesWritten(300)
         sock.disconnectFromServer()
@@ -344,9 +402,10 @@ def _single_instance(app):
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(prog="bytekeys-gui", description=f"{APP_NAME} control panel")
-    ap.add_argument("--minimized", action="store_true", help="start in the tray")
-    ap.add_argument("--demo", action="store_true", help="add simulated keyboards")
+    ap = argparse.ArgumentParser(prog="bytekeys-gui", description=f"{APP_NAME} control center")
+    ap.add_argument("--minimized", action="store_true", help="start hidden (in the tray)")
+    ap.add_argument("--page", choices=PAGE_KEYS, help="open this page")
+    ap.add_argument("--demo", action="store_true", help="add simulated keyboards and fans")
     ap.add_argument("--local", action="store_true", help="do not use the service (portable mode)")
     ap.add_argument("-v", "--verbose", action="store_true")
     ap.add_argument("--version", action="version", version=f"{APP_NAME} {__version__}")
@@ -361,7 +420,7 @@ def main(argv: list[str] | None = None) -> int:
     app.setApplicationDisplayName(APP_NAME)
     app.setApplicationVersion(__version__)
     app.setQuitOnLastWindowClosed(False)
-    server = _single_instance(app)
+    server = _single_instance(app, f"show {args.page or ''}".strip().encode())
     if server is None:
         return 0   # another instance is running and was asked to show itself
     prefs = Prefs()
@@ -375,16 +434,23 @@ def main(argv: list[str] | None = None) -> int:
         log.exception("startup failed")
         QtWidgets.QMessageBox.critical(None, APP_NAME, f"{APP_NAME} could not start:\n\n{e}")
         return 1
-    window = MainWindow(bridge, prefs, app)
+    window = MainWindow(bridge, prefs, app, args.page)
+
+    def on_message(conn):
+        words = bytes(conn.readAll()).decode(errors="replace").split()
+        if len(words) > 1 and words[0] == "show":
+            window.go(words[1])
+        window.show_window()
 
     def on_connection():
         conn = server.nextPendingConnection()
         if conn is not None:
-            conn.readyRead.connect(lambda: (conn.readAll(), window.show_window()))
+            conn.readyRead.connect(lambda: on_message(conn))
     if server:
         server.newConnection.connect(on_connection)
 
-    if not (args.minimized and window.tray.icon.isVisible()):
+    hidden_ok = window.tray.icon.isVisible() or autostart_enabled()
+    if not (args.minimized and hidden_ok):
         window.show()
     log.debug("Qt binding: %s", API)
     return app.exec()

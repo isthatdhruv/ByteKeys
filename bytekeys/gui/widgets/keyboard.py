@@ -232,8 +232,11 @@ class KeyboardView(QtWidgets.QWidget):
         for _, rect, _ in items:
             bounds = bounds.united(rect)
         chassis = bounds.adjusted(-12, -12, 12, 12)
+        body = QtGui.QLinearGradient(chassis.topLeft(), chassis.bottomLeft())
+        body.setColorAt(0, QtGui.QColor(c["chassis"]).lighter(135))
+        body.setColorAt(1, QtGui.QColor(c["chassis"]))
         p.setPen(QtGui.QPen(QtGui.QColor(c["key_edge"]), 1))
-        p.setBrush(QtGui.QColor(c["chassis"]))
+        p.setBrush(body)
         p.drawRoundedRect(chassis, 14, 14)
 
         factor, colors = self._frame()
@@ -245,7 +248,7 @@ class KeyboardView(QtWidgets.QWidget):
         radius = max(3.0, unit * 0.14)
         for zone, rect, text in items:
             if zone is None and rgb:
-                color = (90, 96, 112)
+                color = (92, 92, 100)
                 lit = 0.0
             else:
                 color = colors[zone if zone is not None and zone < len(colors) else 0] if colors else (255, 255, 255)

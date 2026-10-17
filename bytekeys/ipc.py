@@ -38,9 +38,10 @@ MAX_CLIENTS = 64
 ADMIN_GROUP = "bytekeys"
 
 READ_METHODS = {"hello", "system", "devices", "device", "rules", "rule_catalog", "profiles",
-                "settings", "sensors", "report"}
+                "settings", "sensors", "report", "power", "monitor"}
 WRITE_METHODS = {"set", "toggle", "nudge", "feature", "rules_set", "profile_save", "profile_apply",
-                 "profile_delete", "profile_rename", "settings_set", "flash", "rescan"}
+                 "profile_delete", "profile_rename", "settings_set", "flash", "rescan", "power_profile",
+                 "fan_curve", "fan_curve_reset", "fan_boost", "charge_limit", "launch_learn"}
 
 
 class ServiceError(Exception):
@@ -76,6 +77,14 @@ def dispatch(engine, method: str, p: dict) -> Any:
                                         p.get("count", 3), p.get("period", 0.5)),
         "rescan": lambda p: engine.rescan(),
         "report": lambda p: engine.report(),
+        "power": lambda p: engine.power_info(),
+        "monitor": lambda p: engine.monitor(),
+        "power_profile": lambda p: engine.set_power_profile(p["profile"]),
+        "fan_curve": lambda p: engine.set_fan_curve(p["fan"], p.get("points"), p.get("enabled", True)),
+        "fan_curve_reset": lambda p: engine.reset_fan_curve(p["fan"]),
+        "fan_boost": lambda p: engine.set_fan_boost(p.get("on", False)),
+        "charge_limit": lambda p: engine.set_charge_limit(p["limit"]),
+        "launch_learn": lambda p: engine.learn_launch_key(p.get("timeout", 10)),
     }
     fn = table.get(method)
     if fn is None:

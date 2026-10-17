@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Render README screenshots of the control panel with simulated keyboards.
+"""Render README screenshots of the control center with simulated keyboards and fans.
 
-    QT_QPA_PLATFORM=offscreen python3 tools/screenshots.py [dark|light]
+    QT_QPA_PLATFORM=offscreen python3 tools/screenshots.py [dark|light] [page ...]
 """
 
 from __future__ import annotations
@@ -17,59 +17,67 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 work = tempfile.mkdtemp(prefix="bk-shots-")
 os.environ["XDG_CONFIG_HOME"] = os.path.join(work, "config")
 os.environ["XDG_STATE_HOME"] = os.path.join(work, "state")
-os.environ["BYTEKEYS_FSROOT"] = os.path.join(work, "root")   # hide the real hardware
-os.makedirs(os.environ["BYTEKEYS_FSROOT"])
+os.environ["BYTEKEYS_FSROOT"] = root = os.path.join(work, "root")   # hide the real hardware
+dmi = os.path.join(root, "sys/class/dmi/id")
+os.makedirs(dmi)
+for name, value in (("sys_vendor", "ByteKeys"), ("product_name", "Demo Laptop 16"), ("board_vendor", "ByteKeys"),
+                    ("board_name", "DEMO-16"), ("bios_version", "1.0.0")):
+    with open(os.path.join(dmi, name), "w") as f:
+        f.write(value + "\n")
 
 from bytekeys.color import hsv, to_hex  # noqa: E402
 from bytekeys.gui import theme  # noqa: E402
 from bytekeys.gui.app import MainWindow, app_icon  # noqa: E402
 from bytekeys.gui.bridge import Bridge  # noqa: E402
+from bytekeys.gui.pages.performance import PRESETS  # noqa: E402
 from bytekeys.gui.prefs import Prefs  # noqa: E402
 from bytekeys.gui.qt import QtCore, QtWidgets  # noqa: E402
 
 mode = sys.argv[1] if len(sys.argv) > 1 else "dark"
+only = set(sys.argv[2:])
 app = QtWidgets.QApplication([sys.argv[0]])
 app.setQuitOnLastWindowClosed(False)
 prefs = Prefs()
 prefs["theme"] = mode
 prefs["keyboard_layout"] = "full"
+prefs["tray"] = False
 theme.apply(app, mode)
 app.setWindowIcon(app_icon())
 bridge = Bridge(demo=True, local=True)
 bridge.start()
 
 # A colorful scene.
-keys = len(bridge.devices["demo:perkey"]["zones"])
-rainbow = [to_hex(hsv(0.55 + 0.45 * (z["col"] or 0) / 20, 0.85, 1.0))
+rainbow = [to_hex(hsv(0.08 + 0.10 * (z["col"] or 0) / 20, 0.9, 1.0))
            for z in bridge.devices["demo:perkey"]["zones"]]
 bridge.set_state("demo:perkey", {"zones": rainbow, "brightness": 100})
-bridge.set_state("demo:4zone", {"zones": ["#3fa2ff", "#6d7bff", "#9a6bff", "#ff4fd1"]})
-bridge.set_state("demo:rgb", {"color": "#5a7dff"})
+bridge.set_state("demo:4zone", {"zones": ["#ffb35c", "#ff8a3d", "#ff5f6d", "#c86bff"]})
+bridge.set_state("demo:rgb", {"color": "#ffb35c"})
 bridge.set_rules([dict(r, enabled=r["id"] in ("battery-dim", "low-battery", "capslock")) for r in bridge.rules])
+bridge.set_fan_curve("1", PRESETS["balanced"][1], True)
 
-win = MainWindow(bridge, prefs, app)
-win.resize(1180, 820)
+win = MainWindow(bridge, prefs, app, "home")
+win.resize(1240, 860)
 win.show()
 
 
-def settle(ms=500):
+def settle(ms=600):
     timer = QtCore.QDeadlineTimer(ms)
     while not timer.hasExpired():
         app.processEvents(QtCore.QEventLoop.ProcessEventsFlag.AllEvents, 50)
 
 
-def select(device):
-    win.device_combo.setCurrentIndex(win.device_combo.findData(device))
-    settle()
-
-
 os.makedirs(OUT, exist_ok=True)
-shots = [("lighting", 0, "demo:perkey"), ("lighting-zones", 0, "demo:4zone"), ("effects", 1, "demo:4zone"),
-         ("rules", 2, "demo:4zone"), ("profiles", 3, "demo:4zone"), ("system", 4, "demo:4zone")]
+shots = [("home", "home", "demo:perkey"), ("lighting", "lighting", "demo:perkey"),
+         ("lighting-zones", "lighting", "demo:4zone"), ("performance", "performance", None),
+         ("automation", "automation", None), ("profiles", "profiles", "demo:perkey"),
+         ("settings", "settings", None)]
 for name, page, device in shots:
-    select(device)
-    win.nav.setCurrentRow(page)
-    settle(700)
+    if only and name not in only:
+        continue
+    if device:
+        win.select_device(device)
+    win.go(page)
+    settle(1600 if page in ("home", "performance") else 800)
     path = os.path.join(OUT, f"{name}-{mode}.png")
     win.grab().save(path)
     print("wrote", os.path.relpath(path, ROOT))

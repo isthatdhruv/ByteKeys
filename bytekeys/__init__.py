@@ -1,6 +1,6 @@
 """ByteKeys: keyboard backlight and RGB control for Linux laptops."""
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 APP_NAME = "ByteKeys"
 APP_ID = "io.github.isthatdhruv.ByteKeys"

@@ -5,12 +5,12 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "bytekeys"
 dynamic = ["version"]
-description = "Keyboard backlight and RGB lighting control for Linux laptops"
+description = "Keyboard lighting, fans and performance modes for Linux laptops"
 readme = "README.md"
 license = { text = "GPL-3.0-or-later" }
 requires-python = ">=3.10"
 authors = [{ name = "The ByteKeys contributors" }]
-keywords = ["keyboard", "backlight", "rgb", "led", "laptop", "linux"]
+keywords = ["keyboard", "backlight", "rgb", "led", "laptop", "linux", "fan", "performance"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: X11 Applications :: Qt",

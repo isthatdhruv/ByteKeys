@@ -247,3 +247,52 @@ def hints(dmi: dict[str, str], devices: list[dict], *, privileged: bool,
         out.append({"level": "tip", "text": "OpenRGB is installed. Start it with the SDK server enabled "
                                             "(openrgb --server) and press Rescan."})
     return out
+
+
+# The vendor control-center key ("launch key") by laptop family, as evdev codes.
+# Sources: the kernel's asus-nb-wmi, hid-asus and hp-wmi keymaps and systemd's 60-keyboard.hwdb.
+LAUNCH_KEYS = {
+    "asus-tuf": 202,      # Armoury Crate key: KEY_PROG3 through asus-nb-wmi (KEY_PROG1 on N-KEY keyboards)
+    "asus-rog": 202,
+    "asus": 148,          # MyASUS key -> KEY_PROG1
+    "acer-gaming": 148,   # NitroSense / PredatorSense key -> KEY_PROG1
+    "hp-omen": 149,       # OMEN key -> KEY_PROG2
+    "msi": 171,           # MSI Center key -> KEY_CONFIG
+    "samsung": 148,       # Samsung Settings key (Fn+F1) -> KEY_PROG1
+    "huawei": 171,        # PC Manager |M| key -> KEY_CONFIG
+}
+LAUNCH_KEY_NAMES = {
+    "asus-tuf": "Armoury Crate key", "asus-rog": "Armoury Crate key", "asus": "MyASUS key",
+    "acer-gaming": "NitroSense / PredatorSense key", "hp-omen": "OMEN key", "msi": "MSI Center key",
+    "samsung": "Samsung Settings key", "huawei": "PC Manager key",
+}
+# Keys that the desktop itself also acts on (opening Settings, the calculator, mic mute...).
+DESKTOP_KEYS = {171, 183, 140, 226}
+
+
+def default_launch_key(dmi: dict[str, str], hid_keyboard: bool = False) -> int:
+    """The vendor key of this laptop; *hid_keyboard*: an ASUS N-KEY (hid-asus) keyboard is present."""
+    fam = family_for(dmi)
+    if fam is None:
+        return 0
+    if fam.id in ("asus-tuf", "asus-rog") and hid_keyboard:
+        return 148        # hid-asus reports the Armoury Crate / ROG key as KEY_PROG1
+    if fam.id == "msi" and _field_matches(dmi, "product_name|product_family", r"Modern|Prestige|Summit|Creator"):
+        return 148        # these MSI models send KEY_PROG1 (Creation Center key)
+    return LAUNCH_KEYS.get(fam.id, 0)
+
+
+def launch_key_name(dmi: dict[str, str], code: int) -> str:
+    """A friendly name for *code*, using the vendor's name when it is that laptop's launch key."""
+    fam = family_for(dmi)
+    if code and fam and fam.id in LAUNCH_KEY_NAMES:
+        if fam.id in ("asus-tuf", "asus-rog") and code in (148, 202):
+            return LAUNCH_KEY_NAMES[fam.id]
+        if code == default_launch_key(dmi):
+            return "Creation Center key" if fam.id == "msi" and code == 148 else LAUNCH_KEY_NAMES[fam.id]
+    return {148: "Launch key 1", 149: "Launch key 2", 202: "Launch key 3", 203: "Launch key 4",
+            171: "Settings key", 156: "Bookmarks key", 140: "Calculator key", 360: "Vendor key",
+            364: "Favorites key", 425: "Presentation key", 138: "Help key", 141: "Setup key", 226: "Media key",
+            358: "Info key", 444: "Notification key", 579: "Control panel key", 701: "Performance key",
+            **{656 + i: f"Macro key {1 + i}" for i in range(5)},
+            **{183 + i: f"F{13 + i}" for i in range(12)}}.get(code, f"Key {code}" if code else "None")

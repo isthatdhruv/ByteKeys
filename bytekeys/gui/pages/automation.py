@@ -1,30 +1,34 @@
-"""Rules page: automation ("when this happens, do that")."""
+"""Automation: rules that make the lighting react on its own."""
 
 from __future__ import annotations
 
 import copy
 import uuid
 
+from .. import icons, theme
 from ..qt import QtCore, QtGui, QtWidgets, Qt
-from ..widgets.common import (
-    Banner, Card, ParamForm, Pill, Switch, add_action, clear_layout, color_dot, label,
-)
+from ..widgets.forms import IconButton, ParamForm, add_action, clear_layout, color_dot
+from ..widgets.kit import Banner, Card, Chip, Switch, text_label
 from .base import Page
 
 TEMPLATES = [
-    ("Turn off when idle", {"type": "idle", "seconds": 120}, {"type": "off"}),
-    ("Dim on battery", {"type": "power", "source": "battery"}, {"type": "brightness", "value": 40}),
-    ("Night mode", {"type": "time", "start": "22:00", "end": "07:00"}, {"type": "profile", "profile": "Night"}),
-    ("Low battery warning", {"type": "battery", "level": 15},
+    ("Turn off when idle", "moon", {"type": "idle", "seconds": 120}, {"type": "off"}),
+    ("Dim on battery", "battery", {"type": "power", "source": "battery"}, {"type": "brightness", "value": 40}),
+    ("Night mode", "clock", {"type": "time", "start": "22:00", "end": "07:00"},
+     {"type": "brightness", "value": 25}),
+    ("Low battery warning", "warning", {"type": "battery", "level": 15},
      {"type": "alert", "color": "#ff0000", "style": "pulse", "speed": 60}),
-    ("Caps Lock indicator", {"type": "capslock"}, {"type": "color", "color": "#ff2a2a"}),
-    ("Overheat warning", {"type": "temperature", "celsius": 90},
+    ("Caps Lock indicator", "key", {"type": "capslock"}, {"type": "color", "color": "#ff2a2a"}),
+    ("Overheat warning", "thermo", {"type": "temperature", "celsius": 90},
      {"type": "alert", "color": "#ff6a00", "style": "pulse", "speed": 70}),
-    ("Color by CPU temperature", {"type": "always"},
+    ("Color by CPU temperature", "cpu", {"type": "always"},
      {"type": "temperature_color", "low": 45, "high": 90, "cool": "#00a0ff", "hot": "#ff2000"}),
-    ("Color by battery level", {"type": "always"}, {"type": "battery_color"}),
-    ("Lights on in the dark", {"type": "dark", "lux": 20}, {"type": "brightness", "value": 80}),
+    ("Color by battery level", "battery", {"type": "always"}, {"type": "battery_color"}),
+    ("Lights on in the dark", "sun", {"type": "dark", "lux": 20}, {"type": "brightness", "value": 80}),
 ]
+
+TRIGGER_ICONS = {"always": "sparkle", "power": "plug", "battery": "battery", "time": "clock", "idle": "moon",
+                 "capslock": "key", "temperature": "thermo", "cpu": "cpu", "dark": "sun"}
 
 
 def _duration(seconds: int) -> str:
@@ -72,12 +76,12 @@ def action_text(a: dict, effects: dict[str, str], rich: bool = False) -> str:
 
 
 class RuleDialog(QtWidgets.QDialog):
-    def __init__(self, page: "RulesPage", rule: dict | None):
+    def __init__(self, page: "AutomationPage", rule: dict | None):
         super().__init__(page)
         self.page = page
         self.bridge = page.bridge
-        self.setWindowTitle("Edit rule" if rule else "New rule")
-        self.setMinimumWidth(520)
+        self.setWindowTitle("Edit automation" if rule else "New automation")
+        self.setMinimumWidth(560)
         cat = self.bridge.catalog
         self.triggers = cat.get("triggers", {})
         self.actions = cat.get("actions", {})
@@ -87,41 +91,52 @@ class RuleDialog(QtWidgets.QDialog):
             "action": {"type": "brightness", "value": 40}, "target": "all",
         }
         lay = QtWidgets.QVBoxLayout(self)
-        lay.setContentsMargins(22, 20, 22, 18)
+        lay.setContentsMargins(24, 22, 24, 20)
         lay.setSpacing(14)
+        lay.addWidget(text_label("Edit automation" if rule else "New automation", "pageTitle"))
         form = QtWidgets.QFormLayout()
         form.setVerticalSpacing(12)
+        form.setHorizontalSpacing(18)
         self.name = QtWidgets.QLineEdit(self.rule["name"])
         self.name.setPlaceholderText("e.g. Dim on battery")
-        form.addRow("Name", self.name)
+        form.addRow(text_label("Name", "dim"), self.name)
         self.trigger_combo = QtWidgets.QComboBox()
         for key, spec in self.triggers.items():
-            self.trigger_combo.addItem(spec["name"], key)
-        form.addRow("When", self.trigger_combo)
+            self.trigger_combo.addItem(icons.icon(TRIGGER_ICONS.get(key, "sparkle"), theme.colors["dim"], 16),
+                                       spec["name"], key)
+        form.addRow(text_label("When", "dim"), self.trigger_combo)
         lay.addLayout(form)
         self.trigger_box = QtWidgets.QVBoxLayout()
         lay.addLayout(self.trigger_box)
-        self.warning = label("", "cardHint", wrap=True)
+        self.warning = Banner("warn", "")
         lay.addWidget(self.warning)
         form2 = QtWidgets.QFormLayout()
+        form2.setVerticalSpacing(12)
+        form2.setHorizontalSpacing(18)
         self.action_combo = QtWidgets.QComboBox()
         for key, spec in self.actions.items():
             self.action_combo.addItem(spec["name"], key)
-        form2.addRow("Then", self.action_combo)
+        form2.addRow(text_label("Then", "dim"), self.action_combo)
         self.target = QtWidgets.QComboBox()
         self.target.addItem("All keyboards", "all")
         for dev_id in self.bridge.order:
             self.target.addItem(self.bridge.devices[dev_id]["name"], dev_id)
-        form2.addRow("Apply to", self.target)
+        form2.addRow(text_label("Apply to", "dim"), self.target)
         lay.addLayout(form2)
         self.action_box = QtWidgets.QVBoxLayout()
         lay.addLayout(self.action_box)
         lay.addStretch(1)
-        buttons = QtWidgets.QDialogButtonBox(
-            QtWidgets.QDialogButtonBox.StandardButton.Save | QtWidgets.QDialogButtonBox.StandardButton.Cancel)
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        lay.addWidget(buttons)
+        buttons = QtWidgets.QHBoxLayout()
+        buttons.addStretch(1)
+        cancel = QtWidgets.QPushButton("Cancel")
+        cancel.clicked.connect(self.reject)
+        save = QtWidgets.QPushButton("Save")
+        save.setObjectName("primary")
+        save.setDefault(True)
+        save.clicked.connect(self.accept)
+        buttons.addWidget(cancel)
+        buttons.addWidget(save)
+        lay.addLayout(buttons)
 
         self.trigger_form: ParamForm | None = None
         self.action_form: ParamForm | None = None
@@ -156,8 +171,8 @@ class RuleDialog(QtWidgets.QDialog):
                 "battery": "No battery was found.",
                 "capslock": "No Caps Lock indicator was found.",
                 "temperature": "No CPU temperature sensor was found.",
-            }.get(sensor, "The sensor this rule needs was not found.")
-        self.warning.setText(f"⚠ {msg}" if msg else "")
+            }.get(sensor, "The sensor this automation needs was not found.")
+        self.warning.set("warn", msg)
         self.warning.setVisible(bool(msg))
 
     def _build_action(self, initial: bool = False) -> None:
@@ -169,108 +184,130 @@ class RuleDialog(QtWidgets.QDialog):
                                      profiles=[p["name"] for p in self.bridge.profiles])
         self.action_box.addWidget(self.action_form)
         if spec.get("rgb") and not any(d["color_mode"] != "none" for d in self.bridge.devices.values()):
-            self.action_box.addWidget(label("This action needs an RGB keyboard.", "cardHint"))
+            self.action_box.addWidget(text_label("This action needs an RGB keyboard.", "dim"))
 
     def result_rule(self) -> dict:
-        trigger = {"type": self.trigger_combo.currentData(), **(self.trigger_form.values() if self.trigger_form else {})}
+        trigger = {"type": self.trigger_combo.currentData(),
+                   **(self.trigger_form.values() if self.trigger_form else {})}
         action = {"type": self.action_combo.currentData(), **(self.action_form.values() if self.action_form else {})}
         name = self.name.text().strip() or f"{trigger_text(trigger)} → {action_text(action, {})}"[:60]
         return {**self.rule, "name": name, "trigger": trigger, "action": action,
                 "target": self.target.currentData()}
 
 
-class RuleCard(QtWidgets.QFrame):
-    def __init__(self, page: "RulesPage", index: int, rule: dict, active: bool, effects: dict[str, str]):
-        super().__init__()
-        self.setObjectName("card")
-        self.page = page
-        self.index = index
-        self.rule = rule
-        lay = QtWidgets.QHBoxLayout(self)
-        lay.setContentsMargins(16, 12, 12, 12)
-        lay.setSpacing(14)
-        self.switch = Switch()
-        self.switch.setChecked(rule["enabled"])
-        self.switch.toggled.connect(lambda on: page.set_enabled(index, on))
-        lay.addWidget(self.switch)
+class RuleRow(Card):
+    def __init__(self, page: "AutomationPage", index: int, rule: dict, active: bool, effects: dict[str, str]):
+        super().__init__(padding=(16, 14, 14, 14))
+        self.set_active(active)
+        row = QtWidgets.QHBoxLayout()
+        row.setSpacing(14)
+        badge = QtWidgets.QLabel()
+        badge.setFixedSize(40, 40)
+        badge.setPixmap(self._badge(TRIGGER_ICONS.get(rule["trigger"]["type"], "sparkle"), rule["enabled"]))
+        row.addWidget(badge)
         text = QtWidgets.QVBoxLayout()
-        text.setSpacing(2)
-        name = label(rule["name"], "cardTitle")
-        text.addWidget(name)
-        summary = label(f"{trigger_text(rule['trigger'])} → {action_text(rule['action'], effects, rich=True)}",
-                        "cardHint", wrap=True)
+        text.setSpacing(3)
+        text.addWidget(text_label(rule["name"], "rowTitle"))
+        summary = text_label(f"{trigger_text(rule['trigger'])} → {action_text(rule['action'], effects, rich=True)}",
+                             "dim", wrap=True)
         summary.setTextFormat(Qt.TextFormat.RichText)
         text.addWidget(summary)
-        lay.addLayout(text, 1)
+        row.addLayout(text, 1)
         if active:
-            lay.addWidget(Pill("Active now", "good"))
-        edit = QtWidgets.QPushButton("Edit")
+            row.addWidget(Chip("Active now", "good"))
+        switch = Switch()
+        switch.setChecked(rule["enabled"])
+        switch.setToolTip("Enabled")
+        switch.toggled.connect(lambda on: page.set_enabled(index, on))
+        row.addWidget(switch)
+        edit = IconButton("edit", "Edit")
         edit.clicked.connect(lambda: page.edit(index))
-        lay.addWidget(edit)
-        more = QtWidgets.QPushButton("⋯")
-        more.setObjectName("flat")
+        row.addWidget(edit)
+        more = IconButton("dots", "More")
         menu = QtWidgets.QMenu(more)
-        add_action(menu, "Move up", lambda: page.move(index, -1))
-        add_action(menu, "Move down", lambda: page.move(index, 1))
-        add_action(menu, "Duplicate", lambda: page.duplicate(index))
+        add_action(menu, "Move up", lambda: page.move(index, -1), icon="up", enabled=index > 0)
+        add_action(menu, "Move down", lambda: page.move(index, 1), icon="down",
+                   enabled=index < len(page.bridge.rules) - 1)
+        add_action(menu, "Duplicate", lambda: page.duplicate(index), icon="copy")
         menu.addSeparator()
-        add_action(menu, "Delete", lambda: page.delete(index))
+        add_action(menu, "Delete", lambda: page.delete(index), icon="trash")
         more.setMenu(menu)
-        lay.addWidget(more)
+        row.addWidget(more)
+        self.body.addLayout(row)
+
+    @staticmethod
+    def _badge(icon: str, enabled: bool) -> QtGui.QPixmap:
+        ratio = 2
+        pm = QtGui.QPixmap(40 * ratio, 40 * ratio)
+        pm.fill(Qt.GlobalColor.transparent)
+        p = QtGui.QPainter(pm)
+        p.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+        p.scale(ratio, ratio)
+        p.setPen(QtGui.QPen(theme.c("border_hi"), 1))
+        p.setBrush(theme.c("surface2"))
+        p.drawRoundedRect(QtCore.QRectF(0.5, 0.5, 39, 39), 12, 12)
+        icons.paint(p, icon, QtCore.QRectF(10, 10, 20, 20), theme.c("glow" if enabled else "faint"), 1.9)
+        p.end()
+        pm.setDevicePixelRatio(ratio)
+        return pm
 
 
-class RulesPage(Page):
+class AutomationPage(Page):
     def __init__(self, window):
-        super().__init__(window, "Rules", "Make the lighting react on its own: dim on battery, switch off "
-                                          "when idle, warn about low battery or a hot CPU. Rules apply top "
-                                          "to bottom; later rules win.")
-        bar = QtWidgets.QHBoxLayout()
-        bar.setContentsMargins(0, 0, 0, 0)
-        add = QtWidgets.QPushButton("＋ New rule")
+        super().__init__(window, "Automation", "Make the lighting react on its own. Automations apply top to "
+                                               "bottom; later ones win.")
+        add = QtWidgets.QPushButton("  New automation")
+        add.setIcon(icons.icon("plus", theme.colors["accent_text"], 16))
         add.setObjectName("primary")
+        add.setCursor(Qt.CursorShape.PointingHandCursor)
         add.clicked.connect(lambda: self.edit(None))
-        bar.addWidget(add)
-        quick = QtWidgets.QPushButton("Quick add  ▾")
-        menu = QtWidgets.QMenu(quick)
-        for name, trigger, action in TEMPLATES:
-            add_action(menu, name, lambda n=name, t=trigger, a=action: self.add_template(n, t, a))
-        quick.setMenu(menu)
-        bar.addWidget(quick)
-        bar.addStretch(1)
-        holder = QtWidgets.QWidget()
-        holder.setLayout(bar)
-        self.add(holder)
+        self.header_right.addWidget(add, 0, Qt.AlignmentFlag.AlignTop)
+
         self.notice = Banner("info", "")
-        self.notice.action.connect(self.window.install_service)
+        self.notice.action.connect(window.install_service)
         self.add(self.notice)
         self.list_box = QtWidgets.QVBoxLayout()
-        self.list_box.setContentsMargins(0, 0, 0, 0)
         self.list_box.setSpacing(10)
-        holder2 = QtWidgets.QWidget()
-        holder2.setLayout(self.list_box)
-        self.add(holder2)
+        self.add(self.list_box)
+
+        self.ideas = Card("Ideas", "sparkle")
+        self.ideas.add_header_widget(text_label("One click adds them; edit afterwards if you like", "faint"))
+        grid = QtWidgets.QGridLayout()
+        grid.setSpacing(10)
+        for i, (name, icon, trigger, action) in enumerate(TEMPLATES):
+            b = QtWidgets.QPushButton("  " + name)
+            b.setIcon(icons.icon(icon, theme.colors["dim"], 18))
+            b.setIconSize(QtCore.QSize(18, 18))
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
+            b.setStyleSheet("text-align: left; padding: 10px 14px;")
+            b.clicked.connect(lambda _=False, n=name, t=trigger, a=action: self.add_template(n, t, a))
+            grid.addWidget(b, i // 3, i % 3)
+        for c in range(3):
+            grid.setColumnStretch(c, 1)
+        self.ideas.body.addLayout(grid)
+        self.add(self.ideas)
         self.finish()
-        self.bridge.rulesChanged.connect(self.refresh)
-        self.bridge.automationChanged.connect(self.refresh)
-        self.bridge.connectionChanged.connect(self.refresh)
+        self.listen(self.bridge.rulesChanged, self.refresh)
+        self.listen(self.bridge.automationChanged, self.refresh)
+        self.listen(self.bridge.connectionChanged, self.refresh)
 
     def refresh(self) -> None:
         clear_layout(self.list_box)
         dev = self.device()
         effects = {e["id"]: e["name"] for e in (dev or {}).get("effects", [])}
         if self.bridge.mode == "portable":
-            self.notice.set("info", "Rules only run while ByteKeys is open. Install the service to keep "
-                                    "them running in the background and to detect idle time reliably.",
+            self.notice.set("info", "Automations only run while ByteKeys is open. Install the service to keep them "
+                                    "running in the background and to detect idle time reliably.",
                             "Install service")
             self.notice.show()
         else:
             self.notice.hide()
         if not self.bridge.rules:
-            empty = Card("No rules yet")
-            empty.body.addWidget(label("Use “New rule” or “Quick add” to create one.", "cardHint"))
+            empty = Card("No automations yet", "bolt")
+            empty.body.addWidget(text_label("Create one with “New automation”, or start from an idea below.", "dim"))
             self.list_box.addWidget(empty)
         for i, rule in enumerate(self.bridge.rules):
-            self.list_box.addWidget(RuleCard(self, i, rule, rule["id"] in self.bridge.active_rules, effects))
+            self.list_box.addWidget(RuleRow(self, i, rule, rule["id"] in self.bridge.active_rules, effects))
 
     def _save(self, rules: list[dict]) -> None:
         self.bridge.set_rules(rules)
@@ -297,6 +334,7 @@ class RulesPage(Page):
         rules.append({"id": uuid.uuid4().hex[:10], "name": name, "enabled": True,
                       "trigger": dict(trigger), "action": dict(action), "target": "all"})
         self._save(rules)
+        self.window.toast(f"Added “{name}”")
 
     def move(self, index: int, delta: int) -> None:
         rules = copy.deepcopy(self.bridge.rules)
@@ -315,7 +353,7 @@ class RulesPage(Page):
 
     def delete(self, index: int) -> None:
         rule = self.bridge.rules[index]
-        answer = QtWidgets.QMessageBox.question(self, "Delete rule", f"Delete the rule “{rule['name']}”?")
+        answer = QtWidgets.QMessageBox.question(self, "Delete automation", f"Delete “{rule['name']}”?")
         if answer == QtWidgets.QMessageBox.StandardButton.Yes:
             rules = copy.deepcopy(self.bridge.rules)
             del rules[index]

@@ -2,7 +2,7 @@
 <component type="desktop-application">
   <id>io.github.isthatdhruv.ByteKeys</id>
   <name>ByteKeys</name>
-  <summary>Control your laptop keyboard backlight and RGB lighting</summary>
+  <summary>Keyboard lighting, fans and performance modes for your laptop</summary>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-3.0-or-later</project_license>
   <developer id="io.github.isthatdhruv">
@@ -10,15 +10,19 @@
   </developer>
   <description>
     <p>
-      ByteKeys controls the keyboard lighting of Linux laptops: plain white backlights as well as
-      single-zone, multi-zone and per-key RGB keyboards. It detects your laptop and keyboard
-      automatically and configures itself.
+      ByteKeys is a control center for Linux laptops, like the vendor apps on Windows. It controls the
+      keyboard lighting (plain white backlights as well as single-zone, multi-zone and per-key RGB
+      keyboards), the performance modes, the fan curves and the battery charge limit. It detects your
+      laptop and keyboard automatically and configures itself.
     </p>
     <ul>
-      <li>Brightness, colors, zones and per-key colors</li>
-      <li>Software effects for every keyboard and the keyboard's own hardware effects</li>
-      <li>Rules: dim on battery, turn off when idle, low battery and overheat warnings, Caps Lock indicator, schedules</li>
-      <li>Profiles you can switch from the tray, the command line or rules</li>
+      <li>Live temperatures, fan speeds and battery at a glance</li>
+      <li>Performance modes, and custom fan curves that the laptop's firmware runs (ASUS)</li>
+      <li>Full fan speed and battery charge limits</li>
+      <li>Brightness, colors, zones and per-key colors; hardware and software effects</li>
+      <li>The laptop's vendor app key (Armoury Crate, NitroSense, OMEN...) can open ByteKeys</li>
+      <li>Automations: dim on battery, turn off when idle, low battery and overheat warnings, Caps Lock indicator, schedules</li>
+      <li>Profiles you can switch from the tray, the command line or automations</li>
       <li>Works with kernel drivers, common USB lighting controllers and OpenRGB</li>
     </ul>
   </description>
@@ -34,6 +38,8 @@
     <keyword>backlight</keyword>
     <keyword>RGB</keyword>
     <keyword>LED</keyword>
+    <keyword>fan</keyword>
+    <keyword>performance</keyword>
   </keywords>
   <provides>
     <binary>bytekeys</binary>
@@ -48,16 +54,35 @@
   </supports>
   <screenshots>
     <screenshot type="default">
-      <caption>Lighting: live preview, modes and colors</caption>
+      <caption>Home: temperatures, fans, performance mode, keyboard and battery</caption>
+      <image>https://raw.githubusercontent.com/isthatdhruv/ByteKeys/main/docs/screenshots/home-dark.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Lighting: live preview, effects and colors</caption>
       <image>https://raw.githubusercontent.com/isthatdhruv/ByteKeys/main/docs/screenshots/lighting-dark.png</image>
     </screenshot>
     <screenshot>
-      <caption>Rules: automatic lighting</caption>
-      <image>https://raw.githubusercontent.com/isthatdhruv/ByteKeys/main/docs/screenshots/rules-dark.png</image>
+      <caption>Performance: modes, fan curves and battery care</caption>
+      <image>https://raw.githubusercontent.com/isthatdhruv/ByteKeys/main/docs/screenshots/performance-dark.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Automation: lighting that reacts on its own</caption>
+      <image>https://raw.githubusercontent.com/isthatdhruv/ByteKeys/main/docs/screenshots/automation-dark.png</image>
     </screenshot>
   </screenshots>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="1.1.0" date="2026-10-17">
+      <description>
+        <p>A control center for the whole laptop, in a new look:</p>
+        <ul>
+          <li>Home dashboard with live temperatures, fan speeds, performance mode, keyboard and battery</li>
+          <li>Performance modes, custom firmware fan curves per mode (ASUS), full fan speed and battery charge limits</li>
+          <li>The vendor launch key (Armoury Crate, NitroSense, OMEN...) opens ByteKeys</li>
+          <li>Redesigned lighting page with animated effect previews and a color wheel</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.0.0" date="2026-10-17">
       <description>
         <p>First public release: automatic detection, modes and effects, zones and per-key colors,

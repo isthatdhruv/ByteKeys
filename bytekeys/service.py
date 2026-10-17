@@ -25,9 +25,9 @@ MIN_PYTHON = (3, 10)
 UNIT_TEMPLATE = """\
 # Installed by "bytekeys service install". Remove with "bytekeys service uninstall".
 [Unit]
-Description=ByteKeys keyboard lighting service
+Description=ByteKeys keyboard lighting, fan and power service
 Documentation=https://github.com/isthatdhruv/ByteKeys
-After=systemd-udevd.service
+After=systemd-udevd.service power-profiles-daemon.service tuned-ppd.service
 
 [Service]
 Type=notify
@@ -103,7 +103,8 @@ def install(source: str) -> None:
         raise PermissionError("installing the service requires root")
     if os.path.exists(PACKAGED_UNIT):
         print("The ByteKeys package already provides the service; enabling it.")
-        _run(["systemctl", "enable", "--now", SERVICE])
+        _run(["systemctl", "enable", SERVICE])
+        _run(["systemctl", "restart", SERVICE])
         return
     python = _host_python()
     if python is None:
@@ -122,7 +123,8 @@ def install(source: str) -> None:
     with open(UNIT_PATH, "w", encoding="utf-8") as f:
         f.write(UNIT_TEMPLATE.format(python=python, lib=LIB_DIR, hardening=HARDENING))
     _run(["systemctl", "daemon-reload"])
-    _run(["systemctl", "enable", "--now", SERVICE])
+    _run(["systemctl", "enable", SERVICE])
+    _run(["systemctl", "restart", SERVICE])   # also replaces an older running version
     print(f"ByteKeys service installed ({python}) and started.")
 
 

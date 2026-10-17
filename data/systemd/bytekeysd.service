@@ -1,7 +1,7 @@
 [Unit]
-Description=ByteKeys keyboard lighting service
+Description=ByteKeys keyboard lighting, fan and power service
 Documentation=https://github.com/isthatdhruv/ByteKeys
-After=systemd-udevd.service
+After=systemd-udevd.service power-profiles-daemon.service tuned-ppd.service
 
 [Service]
 Type=notify
@@ -10,7 +10,7 @@ StateDirectory=bytekeys
 RuntimeDirectory=bytekeys
 Restart=on-failure
 RestartSec=2
-# The service writes /sys (LED attributes) and opens /dev/hidraw* and /dev/input/*,
+# The service writes /sys (LED, fan and power attributes) and opens /dev/hidraw* and /dev/input/*,
 # so kernel tunables and devices stay visible; everything else is locked down.
 NoNewPrivileges=yes
 ProtectSystem=full

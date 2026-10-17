@@ -1,101 +1,140 @@
-"""Profiles page: saved looks you can switch between."""
+"""Profiles: saved looks you can switch between with one click."""
 
 from __future__ import annotations
 
 import time
 
-from ..qt import QtWidgets, Qt
-from ..widgets.common import Card, add_action, clear_layout, color_dot, label
+from .. import icons, theme
+from ..qt import QtCore, QtGui, QtWidgets, Qt
+from ..widgets.forms import IconButton, add_action, clear_layout
+from ..widgets.kit import Card, text_label
 from .base import Page
+
+
+class LookPreview(QtWidgets.QWidget):
+    """A row of glowing color dots for a saved look."""
+
+    def __init__(self, look: dict | None, parent=None):
+        super().__init__(parent)
+        self.look = look or {}
+        self.setFixedHeight(34)
+
+    def paintEvent(self, _event) -> None:  # noqa: N802
+        p = QtGui.QPainter(self)
+        p.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+        look = self.look
+        on = look.get("on", False)
+        colors = (look.get("colors") or ["#fff4e1"])[:8] if on else []
+        effect = (look.get("effect_name") or "").lower()
+        if on and any(w in effect for w in ("rainbow", "cycle", "spectrum", "wave")):
+            colors = [QtGui.QColor.fromHsvF(i / 7, 0.85, 1.0).name() for i in range(7)]
+        x = 4.0
+        cy = self.height() / 2
+        if not colors:
+            p.setPen(QtGui.QPen(theme.c("faint"), 1.5))
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            p.drawEllipse(QtCore.QPointF(x + 11, cy), 8.5, 8.5)
+            return
+        level = max(0.35, look.get("brightness", 100) / 100)
+        for color in colors:
+            qc = QtGui.QColor(color)
+            glow = QtGui.QRadialGradient(QtCore.QPointF(x + 11, cy), 17)
+            g = QtGui.QColor(qc)
+            g.setAlphaF(0.55 * level)
+            glow.setColorAt(0, g)
+            g2 = QtGui.QColor(qc)
+            g2.setAlpha(0)
+            glow.setColorAt(1, g2)
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(glow)
+            p.drawEllipse(QtCore.QPointF(x + 11, cy), 17, 17)
+            p.setBrush(qc)
+            p.setPen(QtGui.QPen(QtGui.QColor(255, 255, 255, 60), 1))
+            p.drawEllipse(QtCore.QPointF(x + 11, cy), 8.5, 8.5)
+            x += 26
+
+
+class ProfileCard(Card):
+    def __init__(self, page: "ProfilesPage", prof: dict):
+        super().__init__(padding=(20, 18, 16, 16))
+        self.setMinimumHeight(170)
+        name = prof["name"]
+        top = QtWidgets.QHBoxLayout()
+        title = text_label(name, "value")
+        top.addWidget(title, 1)
+        more = IconButton("dots", "More")
+        menu = QtWidgets.QMenu(more)
+        add_action(menu, "Update with current lighting", lambda: page.overwrite(name), icon="save")
+        add_action(menu, "Rename…", lambda: page.rename(name), icon="edit")
+        menu.addSeparator()
+        add_action(menu, "Delete", lambda: page.delete(name), icon="trash")
+        more.setMenu(menu)
+        top.addWidget(more, 0, Qt.AlignmentFlag.AlignTop)
+        self.body.addLayout(top)
+        looks = prof.get("looks", [])
+        current = page.device()
+        look = next((lk for lk in looks if current and lk["device"] == current["id"]), looks[0] if looks else None)
+        self.body.addWidget(LookPreview(look))
+        if look:
+            effect = look.get("effect_name") or "Static"
+            desc = f"{effect} · {look.get('brightness', 100)}%" if look.get("on") else "Lights off"
+            self.body.addWidget(text_label(desc, "rowTitle"))
+        n = len(prof.get("devices", []))
+        detail = f"{n} keyboard{'s' if n != 1 else ''}"
+        when = prof.get("updated")
+        if when:
+            detail += " · saved " + time.strftime("%d %b %Y", time.localtime(when))
+        self.body.addWidget(text_label(detail, "faint"))
+        self.body.addStretch(1)
+        apply = QtWidgets.QPushButton("Apply")
+        apply.setObjectName("primary")
+        apply.setCursor(Qt.CursorShape.PointingHandCursor)
+        apply.clicked.connect(lambda: page.bridge.apply_profile(name))
+        row = QtWidgets.QHBoxLayout()
+        row.addWidget(apply)
+        row.addStretch(1)
+        self.body.addLayout(row)
 
 
 class ProfilesPage(Page):
     def __init__(self, window):
-        super().__init__(window, "Profiles", "Save the current lighting of all keyboards as a profile and "
-                                             "switch with one click (rules can switch profiles too).")
-        bar = QtWidgets.QHBoxLayout()
-        bar.setContentsMargins(0, 0, 0, 0)
-        save = QtWidgets.QPushButton("Save current lighting…")
+        super().__init__(window, "Profiles", "Save the lighting of all keyboards and switch with one click. "
+                                             "Automations can switch profiles too.")
+        save = QtWidgets.QPushButton("  Save current lighting")
+        save.setIcon(icons.icon("plus", theme.colors["accent_text"], 16))
         save.setObjectName("primary")
+        save.setCursor(Qt.CursorShape.PointingHandCursor)
         save.clicked.connect(self.save_current)
-        bar.addWidget(save)
-        bar.addStretch(1)
-        holder = QtWidgets.QWidget()
-        holder.setLayout(bar)
-        self.add(holder)
+        self.header_right.addWidget(save, 0, Qt.AlignmentFlag.AlignTop)
         self.grid = QtWidgets.QGridLayout()
-        self.grid.setContentsMargins(0, 0, 0, 0)
-        self.grid.setSpacing(12)
-        grid_holder = QtWidgets.QWidget()
-        grid_holder.setLayout(self.grid)
-        self.add(grid_holder)
+        self.grid.setSpacing(16)
+        self.add(self.grid)
         self.finish()
-        self.bridge.profilesChanged.connect(self.refresh)
-        window.deviceSelected.connect(lambda _id: self.refresh())
+        self.listen(self.bridge.profilesChanged, self.refresh)
+        self.listen(window.deviceSelected, self._on_selected)
+
+    def _on_selected(self, _dev_id: str) -> None:
+        self.refresh()
 
     def refresh(self) -> None:
         clear_layout(self.grid)
         cols = 3
         if not self.bridge.profiles:
-            empty = Card("No profiles yet")
-            empty.body.addWidget(label("Set up the lighting you like, then save it as a profile.", "cardHint"))
+            empty = Card("No profiles yet", "layers")
+            empty.body.addWidget(text_label("Set up the lighting you like, then save it as a profile with "
+                                            "“Save current lighting”.", "dim", wrap=True))
             self.grid.addWidget(empty, 0, 0, 1, cols)
         for i, prof in enumerate(self.bridge.profiles):
-            card = Card(prof["name"])
-            looks = prof.get("looks", [])
-            current = self.device()
-            look = next((lk for lk in looks if current and lk["device"] == current["id"]),
-                        looks[0] if looks else None)
-            if look:
-                preview = label(self._look_text(look), wrap=True)
-                preview.setTextFormat(Qt.TextFormat.RichText)
-                card.body.addWidget(preview)
-            when = prof.get("updated")
-            n = len(prof.get("devices", []))
-            detail = f"{n} keyboard{'s' if n != 1 else ''}"
-            if when:
-                detail += " · saved " + time.strftime("%d %b %Y", time.localtime(when))
-            card.body.addWidget(label(detail, "cardHint"))
-            row = QtWidgets.QHBoxLayout()
-            apply = QtWidgets.QPushButton("Apply")
-            apply.setObjectName("primary")
-            apply.clicked.connect(lambda _=False, name=prof["name"]: self._apply(name))
-            row.addWidget(apply)
-            row.addStretch(1)
-            more = QtWidgets.QPushButton("⋯")
-            more.setObjectName("flat")
-            menu = QtWidgets.QMenu(more)
-            add_action(menu, "Update with current lighting", lambda name=prof["name"]: self._overwrite(name))
-            add_action(menu, "Rename…", lambda name=prof["name"]: self._rename(name))
-            menu.addSeparator()
-            add_action(menu, "Delete", lambda name=prof["name"]: self._delete(name))
-            more.setMenu(menu)
-            row.addWidget(more)
-            card.body.addLayout(row)
-            self.grid.addWidget(card, i // cols, i % cols)
+            self.grid.addWidget(ProfileCard(self, prof), i // cols, i % cols)
         for c in range(cols):
             self.grid.setColumnStretch(c, 1)
-
-    @staticmethod
-    def _look_text(look: dict) -> str:
-        if not look.get("on"):
-            return "<span style='color:gray'>●</span> Lights off"
-        colors = look.get("colors") or []
-        dots = "".join(color_dot(c, 12) for c in colors[:6])
-        effect = look.get("effect_name") or "Static"
-        return f"{dots} {effect} · {look.get('brightness', 100)}%"
-
-    def _apply(self, name: str) -> None:
-        self.bridge.apply_profile(name)
-        self.window.toast(f"Profile “{name}” applied")
 
     def save_current(self) -> None:
         name, ok = QtWidgets.QInputDialog.getText(self, "Save profile", "Profile name:")
         name = name.strip()
         if not ok or not name:
             return
-        existing = {p["name"] for p in self.bridge.profiles}
-        if name in existing:
+        if name in {p["name"] for p in self.bridge.profiles}:
             answer = QtWidgets.QMessageBox.question(self, "Replace profile",
                                                     f"A profile named “{name}” exists. Replace it?")
             if answer != QtWidgets.QMessageBox.StandardButton.Yes:
@@ -103,17 +142,17 @@ class ProfilesPage(Page):
         self.bridge.save_profile(name)
         self.window.toast(f"Saved profile “{name}”")
 
-    def _overwrite(self, name: str) -> None:
+    def overwrite(self, name: str) -> None:
         self.bridge.save_profile(name)
         self.window.toast(f"Updated profile “{name}”")
 
-    def _rename(self, name: str) -> None:
+    def rename(self, name: str) -> None:
         new, ok = QtWidgets.QInputDialog.getText(self, "Rename profile", "New name:", text=name)
         new = new.strip()
         if ok and new and new != name:
             self.bridge.rename_profile(name, new)
 
-    def _delete(self, name: str) -> None:
+    def delete(self, name: str) -> None:
         answer = QtWidgets.QMessageBox.question(self, "Delete profile", f"Delete the profile “{name}”?")
         if answer == QtWidgets.QMessageBox.StandardButton.Yes:
             self.bridge.delete_profile(name)

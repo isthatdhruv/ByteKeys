@@ -13,11 +13,13 @@ import copy
 import logging
 import math
 import os
+import re
 import threading
 import time
 from typing import Callable
 
 from .. import __version__, fsroot, models, sysinfo
+from ..power import DemoPower, PowerControl, validate_curve
 from ..color import RGB, normalize, parse, scale
 from ..hw import registry
 from ..hw.base import AccessError, Device, DeviceError, Frame
@@ -157,6 +159,13 @@ class Engine:
             session_idle = SessionIdle()
             idle_source = session_idle if session_idle.ok else None
         self.sensors = Sensors(idle_source)
+        self.power = DemoPower(self.sensors) if demo else PowerControl(self.sensors)
+        self.power_state: dict = {}
+        self._power_lock = threading.Lock()
+        self._profile_seen: str | None = None
+        self._curve_retry_at = 0.0
+        self._curve_fixes: list[float] = []
+        self._curve_lock = threading.RLock()     # one curve sync at a time (RPC threads and the loop)
 
     # ================================================================ lifecycle
     def start(self) -> None:
@@ -176,6 +185,8 @@ class Engine:
                              if isinstance(v, dict) and isinstance(v.get("devices"), dict)}
             self.feature_values = {k: v for k, v in data.get("features", {}).items() if isinstance(v, dict)}
             self._saved_states = {k: v for k, v in data.get("devices", {}).items() if isinstance(v, dict)}
+            power = data.get("power", {})
+            self.power_state = power if isinstance(power, dict) else {}
         if self.input and not self.input.available():
             log.info("no readable input devices; idle detection disabled")
             self.input = None
@@ -183,8 +194,20 @@ class Engine:
         self._discover(initial=True)
         if self.first_run:
             self._auto_config()
+        if "launch_key" not in (data.get("settings") or {}):
+            # Never configured (new install or upgrade): use this laptop's vendor key.
+            hid_asus = any(re.match(r"[0-9A-Fa-f]{4}:0B05:", n, re.IGNORECASE)
+                           for n in fsroot.listdir("/sys/bus/hid/drivers/asus"))
+            with self.lock:
+                self.settings["launch_key"] = models.default_launch_key(self.sysinfo["dmi"], hid_asus)
+                self._dirty()
         if self.input:
+            self.input.launch_code = self.settings["launch_key"]
+            self.input.on_launch = self._launch_pressed
             self.input.start()
+        self._profile_seen = self.power.profiles()[1]
+        if self.restore and self.privileged:
+            self._reapply_power()
         self._thread = threading.Thread(target=self._run, name="bytekeys-engine", daemon=True)
         self._thread.start()
 
@@ -449,6 +472,7 @@ class Engine:
             "profiles": self.profiles,
             "settings": self.settings,
             "features": self.feature_values,
+            "power": self.power_state,
         }
         try:
             self.store.save(data)
@@ -711,12 +735,211 @@ class Engine:
             before = copy.deepcopy(self.settings)
             self.settings = clean_settings(changes, self.settings)
             rescan = any(before[k] != self.settings[k] for k in self.settings if k.startswith("openrgb"))
+            if self.input is not None:
+                self.input.launch_code = self.settings["launch_key"]
             self._dirty()
             self._emit("settings", {"settings": copy.deepcopy(self.settings)})
         self._flush()
         if rescan:
             self.rescan()
         return self.get_settings()
+
+    # ------------------------------------------------------------- power
+    def power_info(self) -> dict:
+        with self._power_lock:
+            info = self.power.info()
+        info["saved"] = copy.deepcopy(self.power_state)
+        return info
+
+    def monitor(self) -> dict:
+        with self._power_lock:
+            return self.power.monitor()
+
+    def set_power_profile(self, name: str) -> dict:
+        with self._power_lock:
+            self.power.set_profile(str(name))
+        self._on_profile(force=True)     # even the same mode again drops the custom curves
+        return self.power_info()
+
+    def set_fan_curve(self, fan: str, points=None, enabled: bool = True) -> dict:
+        fan = str(fan)
+        enabled = as_bool(enabled)
+        points = validate_curve(points) if points is not None else None
+        with self._curve_lock:
+            self._set_fan_curve(fan, points, enabled)
+        return self._power_changed()
+
+    def _set_fan_curve(self, fan: str, points, enabled: bool) -> None:
+        with self._power_lock:
+            if fan not in self.power.curve_fans():
+                raise KeyError(f"no fan curve {fan!r}")
+            profile = self.power.profiles()[1]
+        key = profile or "default"
+        with self.lock:
+            curves = self.power_state.setdefault("curves", {}).setdefault(key, {})
+            previous = (curves.get(fan) or {}).get("points")
+        if enabled:
+            with self._power_lock:
+                self.power.set_curve(fan, points or previous, True)
+                points = self.power.curve(fan)["points"]
+        else:
+            with self._power_lock:
+                self.power.set_curve(fan, None, False)   # firmware control: resets every fan
+            points = points or previous
+        with self.lock:
+            if points:
+                curves[fan] = {"points": points, "enabled": enabled}   # kept to switch it back on later
+            else:
+                curves.pop(fan, None)
+            self._dirty()
+        if not enabled:
+            self._sync_curves(profile)
+
+    def reset_fan_curve(self, fan: str) -> dict:
+        fan = str(fan)
+        with self._curve_lock:                          # the curve watchdog must not see a half reset
+            with self._power_lock:
+                profile = self.power.profiles()[1]
+                self.power.reset_curve(fan)             # reloads the factory curve, resets every fan
+                factory = self.power.curve(fan)["points"]
+            key = profile or "default"
+            with self.lock:
+                self.power_state.get("curves", {}).get(key, {}).pop(fan, None)
+                self.power_state.setdefault("defaults", {}).setdefault(key, {})[fan] = factory
+                self._dirty()
+            self._apply_curves(key)
+        return self._power_changed()
+
+    def set_fan_boost(self, on: bool) -> dict:
+        on = as_bool(on)
+        with self._curve_lock:
+            with self._power_lock:
+                self.power.set_boost(on)
+                profile = self.power.profiles()[1]
+            if not on:   # the kernel switched custom curves off; bring ours back
+                self._sync_curves(profile)
+        return self._power_changed()
+
+    def set_charge_limit(self, limit: int) -> dict:
+        limit = as_int(limit, 20, 100)
+        with self._power_lock:
+            self.power.set_charge_limit(limit)
+        with self.lock:
+            self.power_state["charge_limit"] = limit
+            self._dirty()
+        return self._power_changed()
+
+    def _power_changed(self) -> dict:
+        info = self.power_info()
+        self._emit("power", info)
+        self._flush()
+        return info
+
+    def _on_profile(self, force: bool = False) -> None:
+        """The performance profile changed (here, by Fn+F5, or by the desktop)."""
+        with self._curve_lock:
+            profile = self.power.profiles()[1]    # re-read: another thread may have handled it
+            if profile == self._profile_seen and not force:
+                return
+            self._profile_seen = profile
+            if self.privileged:
+                self._sync_curves(profile)
+        self._power_changed()
+
+    # Firmware fan curves (ASUS). The kernel forgets custom curves on every profile
+    # write, at boot and on resume, and only knows the firmware's own curve for the
+    # profile it booted with. Switching any fan back to firmware control resets all
+    # fans, so enabled curves are always written last.
+    def _sync_curves(self, profile: str | None) -> None:
+        """Run this profile's custom curves and show the firmware's own curve for the others."""
+        if not self.privileged:
+            return
+        with self._curve_lock:
+            self._sync_curves_locked(profile)
+
+    def _sync_curves_locked(self, profile: str | None) -> None:
+        key = profile or "default"
+        saved = self.power_state.get("curves", {}).get(key, {})
+        defaults = self.power_state.setdefault("defaults", {}).setdefault(key, {})
+        for fan in self.power.curve_fans():
+            if (saved.get(fan) or {}).get("enabled"):
+                continue
+            try:
+                with self._power_lock:
+                    if defaults.get(fan):
+                        self.power.load_points(fan, defaults[fan])
+                    else:
+                        self.power.reset_curve(fan)     # learn the firmware's curve for this profile
+                        defaults[fan] = self.power.curve(fan)["points"]
+                        self._dirty()
+            except (KeyError, ValueError, DeviceError, OSError) as e:
+                log.warning("could not load the firmware fan curve %s: %s", fan, e)
+        self._apply_curves(key)
+
+    def _apply_curves(self, key: str) -> None:
+        with self._curve_lock:
+            self._apply_curves_locked(key)
+
+    def _apply_curves_locked(self, key: str) -> None:
+        for fan, curve in list(self.power_state.get("curves", {}).get(key, {}).items()):
+            if not curve.get("enabled"):
+                continue
+            try:
+                with self._power_lock:
+                    self.power.set_curve(fan, curve.get("points"), True)
+            except (KeyError, ValueError, DeviceError, OSError) as e:
+                log.warning("could not restore fan curve %s: %s", fan, e)
+
+    def _check_curves(self, now: float) -> None:
+        """Bring back custom curves the kernel dropped (a profile write of the same value does it too)."""
+        if not self.privileged or now < self._curve_retry_at:
+            return
+        with self._curve_lock:
+            self._check_curves_locked(now)
+
+    def _check_curves_locked(self, now: float) -> None:
+        key = self._profile_seen or "default"
+        wanted = [fan for fan, c in self.power_state.get("curves", {}).get(key, {}).items() if c.get("enabled")]
+        if not wanted:
+            return
+        try:
+            with self._power_lock:
+                lost = [fan for fan in wanted if not self.power.curve_enabled(fan)]
+        except (KeyError, OSError):
+            return
+        if not lost:
+            return
+        self._curve_fixes = [t for t in self._curve_fixes if now - t < 60] + [now]
+        if len(self._curve_fixes) > 3:
+            log.warning("something keeps resetting the fan curves (is asusd running?); retrying in 5 minutes")
+            self._curve_retry_at = now + 300
+            self._curve_fixes = []
+            return
+        log.info("the firmware dropped fan curve(s) %s; re-applying", ", ".join(lost))
+        self._apply_curves(key)
+        self._power_changed()
+
+    def _reapply_power(self) -> None:
+        limit = self.power_state.get("charge_limit")
+        if limit:
+            try:
+                with self._power_lock:
+                    self.power.set_charge_limit(int(limit))
+            except (KeyError, ValueError, DeviceError, OSError) as e:
+                log.warning("could not restore the charge limit: %s", e)
+        self._sync_curves(self.power.profiles()[1])
+
+    # ----------------------------------------------------------- launch key
+    def _launch_pressed(self) -> None:
+        self._emit("launch", {})
+        self._flush()
+
+    def learn_launch_key(self, timeout: float = 10.0) -> dict:
+        if self.input is None:
+            raise ValueError("detecting keys needs the ByteKeys service")
+        from .inputwatch import SPECIAL_KEYS
+        code = self.input.learn(max(1.0, min(20.0, float(timeout))))
+        return {"code": code, "name": SPECIAL_KEYS.get(code) if code else None}
 
     # ------------------------------------------------------------------ misc
     def sensor_readings(self) -> dict:
@@ -965,6 +1188,8 @@ class Engine:
                     log.info("resume from suspend detected; restoring lighting")
                     self._force_push_at = now + 1.5
                     self._rescan_due = now + 3.0
+                    if self.privileged:
+                        self._reapply_power()
                 boot_offset = offset
 
                 if self._sensor_now or now - last_sensor >= SENSOR_PERIOD:
@@ -1013,6 +1238,10 @@ class Engine:
                 if now - last_poll >= POLL_PERIOD:
                     last_poll = now
                     self._poll_levels()
+                    if self.power.profiles()[1] != self._profile_seen:
+                        self._on_profile()
+                    else:
+                        self._check_curves(now)
 
                 if self._rescan_due is not None and now >= self._rescan_due:
                     self._rescan_due = None

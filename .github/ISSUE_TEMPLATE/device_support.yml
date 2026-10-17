@@ -32,7 +32,7 @@ body:
     id: report
     attributes:
       label: Diagnostic report
-      description: Output of `bytekeys report`, or System → Copy report in the control panel.
+      description: Output of `bytekeys report`, or Settings → Copy report in the control center.
       render: text
     validations:
       required: true

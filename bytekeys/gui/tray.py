@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from .. import APP_NAME
-from .qt import QtCore, QtWidgets
-from .widgets.common import add_action
+from .qt import QtWidgets, QtCore
+from .widgets.forms import add_action
 
 
 class Tray(QtCore.QObject):
@@ -45,7 +45,7 @@ class Tray(QtCore.QObject):
         if dev:
             st = dev["effective"]
             lit = st["on"] and st["brightness"] > 0
-            add_action(m, "Lights on", lambda: self.bridge.toggle(dev["id"]), checkable=True, checked=lit)
+            add_action(m, "Keyboard light", lambda: self.bridge.toggle(dev["id"]), checkable=True, checked=lit)
             bright = m.addMenu("Brightness")
             levels = dev.get("levels")
             if levels:
@@ -65,8 +65,14 @@ class Tray(QtCore.QObject):
                 add_action(fx, e["name"] + ("  (HW)" if e["hardware"] else ""),
                            lambda eid=e["id"]: self.bridge.set_state(dev["id"], {"effect": eid, "on": True}),
                            checkable=True, checked=dev["state"]["effect"] == e["id"])
+        power = self.bridge.power or {}
+        if power.get("profiles"):
+            perf = m.addMenu("Performance mode")
+            for p in power["profiles"]:
+                add_action(perf, p["name"], lambda pid=p["id"]: self.bridge.set_power_profile(pid),
+                           checkable=True, checked=power.get("profile") == p["id"])
         if self.bridge.profiles:
-            prof = m.addMenu("Profile")
+            prof = m.addMenu("Lighting profile")
             for p in self.bridge.profiles:
                 add_action(prof, p["name"], lambda n=p["name"]: self.bridge.apply_profile(n))
         m.addSeparator()

@@ -11,7 +11,7 @@ Thanks for helping! The most valuable contributions are:
 
 ```bash
 make test        # python3 -m unittest; no hardware needed
-make demo        # control panel with simulated keyboards (needs PyQt6 or PySide6)
+make demo        # control center with simulated keyboards and fans (needs PyQt6 or PySide6)
 make cli         # bytekeys status from the source tree
 ```
 

@@ -35,5 +35,5 @@ DEB=$OUT/bytekeys_${VERSION}_all.deb
 dpkg-deb --root-owner-group -Zxz --build "$PKG" "$DEB" >/dev/null
 echo "built $DEB"
 if command -v lintian >/dev/null 2>&1; then
-    lintian --no-tag-display-limit "$DEB" || true
+    lintian --tag-display-limit 0 "$DEB" || true
 fi

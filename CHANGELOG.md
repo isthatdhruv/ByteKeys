@@ -1,5 +1,30 @@
 # Changelog
 
+## 1.1.0 (2026-10-17)
+
+A control center for the whole laptop: fans, performance modes and the vendor launch key, in a new look.
+
+- **Redesigned control center** in a graphite and warm-light look that follows the new logo, with a
+  sidebar for Home, Lighting, Performance, Automation, Profiles and Settings (Effects moved into
+  Lighting, Rules became Automation, System became Settings). Dark and light themes.
+- **New logo**, app icon, favicon and banners (frosted glass keycaps with a warm light).
+- **Home dashboard**: live CPU/GPU temperatures, fan speeds and CPU load, performance modes, quick
+  keyboard controls (power, brightness, modes, colors) and the battery with its charge limit.
+- **Performance and fans**: firmware performance modes (platform profile, synced with
+  power-profiles-daemon); custom fan curves that the laptop's firmware runs (ASUS), with presets, safety
+  limits and one curve per mode, kept active whenever the kernel drops them (mode changes, boot, resume);
+  full fan speed; battery charge limit (charge thresholds, Dell custom mode, IdeaPad and "Long Life"
+  conservation modes).
+- **Launch key**: the vendor app key (Armoury Crate, NitroSense/PredatorSense, OMEN, MSI Center,
+  MyASUS...) opens ByteKeys. The service watches only that key; a GNOME or KDE shortcut also starts
+  ByteKeys when it is closed. Keys can be detected with or without the service.
+- Lighting page with animated effect previews, a color wheel, effect settings and device options in one
+  view.
+- New `bytekeys perf`, `bytekeys fans` and `bytekeys charge-limit` commands.
+- The control center notices an outdated service and offers to update it; installing the service from
+  the AppImage now also restarts an older running version.
+- `--demo` also simulates fans and performance modes.
+
 ## 1.0.0 (2026-10-17)
 
 First public release.

@@ -1,182 +1,201 @@
-"""Lighting page: preview, power, brightness, mode, colors and device settings."""
+"""Lighting: live preview, effects, brightness, colors and device options."""
 
 from __future__ import annotations
 
-from ...color import SWATCHES, is_color, normalize
-from ... import modes
-from ..qt import QtCore, QtGui, QtWidgets, Qt
-from ..widgets.common import (
-    Banner,
-    Card,
-    Pill,
-    RowList,
-    Segmented,
-    SettingRow,
-    Swatch,
-    Switch,
-    clear_layout,
-    label,
-)
+from ...color import SWATCHES, normalize
+from ..devicectl import BACKEND_TEXT, DeviceControl, kind_text
+from ..qt import QtCore, QtWidgets, Qt
+from ..widgets.forms import ColorButton, ParamForm, clear_layout
 from ..widgets.keyboard import KeyboardView
+from ..widgets.kit import (
+    Banner, Card, Chip, ColorPanel, EffectTile, NeonSlider, RowList, Segmented, SettingRow, Switch, text_label,
+)
 from .base import Page
-
-KIND_TEXT = {"none": "Single color", "single": "RGB", "zones": "{n}-zone RGB", "perkey": "Per-key RGB"}
-BACKEND_TEXT = {"sysfs": "Kernel driver", "hid": "USB", "openrgb": "OpenRGB", "demo": "Simulated"}
 
 
 class LightingPage(Page):
     def __init__(self, window):
-        super().__init__(window, "Lighting", "Brightness, mode and colors of your keyboard.")
+        super().__init__(window, "Lighting", "")
+        self.ctl = DeviceControl(self)
         self._dev_id: str | None = None
+        self._effect_ids: list[str] = []
+        self._params_key = None
+        self._form: ParamForm | None = None
+        self._color_buttons: list[ColorButton] = []
         self._feature_ids: list[str] = []
         self._feature_widgets: dict[str, QtWidgets.QWidget] = {}
-        self._modes_key = None
         self._selection: list[int] = []
-        self._pending: dict = {}
-        self._send_timer = QtCore.QTimer(self)
-        self._send_timer.setSingleShot(True)
-        self._send_timer.setInterval(70)
-        self._send_timer.timeout.connect(self._flush)
+        self._color_live = False
+
+        self.device_combo = QtWidgets.QComboBox()
+        self.device_combo.setMinimumWidth(220)
+        self.device_combo.activated.connect(self._on_device_combo)
+        self.kind_chip = Chip("", "accent")
+        self.backend_chip = Chip("", "dim")
+        for w in (self.device_combo, self.kind_chip, self.backend_chip):
+            self.header_right.addWidget(w, 0, Qt.AlignmentFlag.AlignTop)
 
         self.access_banner = Banner("warn", "", "Install service")
-        self.access_banner.action.connect(self.window.install_service)
+        self.access_banner.action.connect(window.install_service)
         self.add(self.access_banner)
         self.rules_banner = Banner("info", "")
         self.add(self.rules_banner)
 
-        # Preview -------------------------------------------------------
-        preview = self.preview_card = Card()
-        top = QtWidgets.QHBoxLayout()
-        top.setSpacing(8)
-        self.dev_name = label("", "cardTitle")
-        top.addWidget(self.dev_name)
-        self.kind_pill = Pill("")
-        self.backend_pill = Pill("")
-        top.addWidget(self.kind_pill)
-        top.addWidget(self.backend_pill)
-        top.addStretch(1)
-        self.effect_label = label("", "cardHint")
-        top.addWidget(self.effect_label)
-        preview.body.addLayout(top)
-        self.keyboard = KeyboardView()
-        self.keyboard.selectionChanged.connect(self._on_selection)
-        preview.body.addWidget(self.keyboard)
-        self.add(preview)
+        cols = QtWidgets.QHBoxLayout()
+        cols.setSpacing(16)
+        left = QtWidgets.QVBoxLayout()
+        left.setSpacing(16)
+        right = QtWidgets.QVBoxLayout()
+        right.setSpacing(16)
+        cols.addLayout(left, 3)
+        cols.addLayout(right, 2)
+        self.columns = QtWidgets.QWidget()
+        cols.setContentsMargins(0, 0, 0, 0)
+        self.columns.setLayout(cols)
+        self.add(self.columns)
 
-        # Power & brightness --------------------------------------------
-        power = self.power_card = Card("Power & brightness")
-        row = QtWidgets.QHBoxLayout()
-        row.setSpacing(18)
+        # Preview ----------------------------------------------------------
+        self.preview = Card("Preview", "keyboard")
+        self.effect_label = text_label("", "dim")
+        self.preview.add_header_widget(self.effect_label)
+        self.keyboard = KeyboardView()
+        self.keyboard.setMaximumHeight(300)
+        self.keyboard.selectionChanged.connect(self._on_selection)
+        self.preview.body.addWidget(self.keyboard)
+        sel = QtWidgets.QHBoxLayout()
+        self.selection_hint = text_label("", "faint")
+        sel.addWidget(self.selection_hint)
+        sel.addStretch(1)
+        self.select_all = QtWidgets.QPushButton("Select all")
+        self.select_all.setObjectName("ghost")
+        self.select_all.clicked.connect(self._select_all)
+        self.select_none = QtWidgets.QPushButton("Clear selection")
+        self.select_none.setObjectName("ghost")
+        self.select_none.clicked.connect(self._clear_selection)
+        sel.addWidget(self.select_all)
+        sel.addWidget(self.select_none)
+        self.selection_bar = QtWidgets.QWidget()
+        sel.setContentsMargins(0, 0, 0, 0)
+        self.selection_bar.setLayout(sel)
+        self.preview.body.addWidget(self.selection_bar)
+        left.addWidget(self.preview)
+
+        # Effects ----------------------------------------------------------
+        self.effects = Card("Effects", "sparkle")
+        self.effects.add_header_widget(text_label("HW = runs on the keyboard itself", "faint"))
+        self.grid = QtWidgets.QGridLayout()
+        self.grid.setSpacing(10)
+        self.effects.body.addLayout(self.grid)
+        self.effect_group = QtWidgets.QButtonGroup(self)
+        self.effect_group.setExclusive(True)
+        left.addWidget(self.effects)
+
+        self.params = Card("Effect settings", "gear")
+        self.params_box = QtWidgets.QVBoxLayout()
+        self.params_box.setSpacing(12)
+        self.params.body.addLayout(self.params_box)
+        left.addWidget(self.params)
+        left.addStretch(1)
+
+        # Brightness ------------------------------------------------------
+        self.bright = Card("Brightness", "sun")
         self.power = Switch()
         self.power.toggled.connect(self._on_power)
-        row.addWidget(self.power)
-        self.slider = QtWidgets.QSlider(Qt.Orientation.Horizontal)
+        self.bright.add_header_widget(self.power)
+        row = QtWidgets.QHBoxLayout()
+        self.slider = NeonSlider(0, 100)
         self.slider.valueChanged.connect(self._on_slider)
+        self.slider.released.connect(lambda v: self.ctl.set_slider(v, final=True))
         row.addWidget(self.slider, 1)
-        self.level_label = label("", "big")
-        self.level_label.setMinimumWidth(130)
-        self.level_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        row.addWidget(self.level_label)
-        power.body.addLayout(row)
-        self.levels_hint = label("", "cardHint")
-        power.body.addWidget(self.levels_hint)
-        self.add(power)
+        self.level = text_label("", "value")
+        self.level.setMinimumWidth(70)
+        self.level.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        row.addWidget(self.level)
+        self.bright.body.addLayout(row)
+        self.bright_hint = text_label("", "faint", wrap=True)
+        self.bright.body.addWidget(self.bright_hint)
+        right.addWidget(self.bright)
 
-        # Mode ------------------------------------------------------------
-        self.mode_card = Card("Mode")
-        more = QtWidgets.QPushButton("All effects →")
-        more.setObjectName("link")
-        more.setCursor(Qt.CursorShape.PointingHandCursor)
-        more.clicked.connect(lambda: self.window.nav.setCurrentRow(1))
-        self.mode_card.add_header_widget(more)
-        self.mode_row = QtWidgets.QHBoxLayout()
-        self.mode_row.setSpacing(6)
-        self.mode_card.body.addLayout(self.mode_row)
-        self.mode_group = QtWidgets.QButtonGroup(self)
-        self.mode_group.setExclusive(True)
-        self.speed_row = QtWidgets.QHBoxLayout()
-        self.speed_row.setSpacing(12)
-        self.speed_label = label("Speed", "cardHint")
-        self.speed_row.addWidget(self.speed_label)
-        self.speed_holder = QtWidgets.QHBoxLayout()
-        self.speed_row.addLayout(self.speed_holder)
-        self.speed_row.addStretch(1)
-        self.mode_card.body.addLayout(self.speed_row)
-        self.mode_hint = label("", "cardHint", wrap=True)
-        self.mode_card.body.addWidget(self.mode_hint)
-        self.add(self.mode_card)
-
-        # Color -----------------------------------------------------------
-        self.color_card = Card("Color")
-        self.target = Segmented([("all", "Whole keyboard"), ("selected", "Selected zones")])
+        # Color -------------------------------------------------------------
+        self.color = Card("Color", "palette")
+        self.target = Segmented([("all", "All"), ("selected", "Selection")], stretch=False)
         self.target.set_value("all")
         self.target.changed.connect(lambda _v: self._update_selection_hint())
-        self.color_card.add_header_widget(self.target)
-        swatch_row = QtWidgets.QHBoxLayout()
-        swatch_row.setSpacing(2)
-        self.swatch_group = QtWidgets.QButtonGroup(self)
-        self.swatch_group.setExclusive(True)
-        self.swatches: list[Swatch] = []
-        for color in SWATCHES:
-            sw = Swatch(color)
-            sw.clicked.connect(lambda _=False, c=color: self._apply_color(c))
-            self.swatch_group.addButton(sw)
-            self.swatches.append(sw)
-            swatch_row.addWidget(sw)
-        swatch_row.addStretch(1)
-        self.color_card.body.addLayout(swatch_row)
-        custom = QtWidgets.QHBoxLayout()
-        self.custom_btn = QtWidgets.QPushButton("Custom color…")
-        self.custom_btn.clicked.connect(self._custom_color)
-        custom.addWidget(self.custom_btn)
-        self.hex_edit = QtWidgets.QLineEdit()
-        self.hex_edit.setPlaceholderText("#rrggbb")
-        self.hex_edit.setFixedWidth(110)
-        self.hex_edit.returnPressed.connect(self._hex_entered)
-        custom.addWidget(self.hex_edit)
-        custom.addStretch(1)
-        self.selection_hint = label("", "cardHint")
-        custom.addWidget(self.selection_hint)
-        self.select_all = QtWidgets.QPushButton("Select all")
-        self.select_all.setObjectName("flat")
-        self.select_all.clicked.connect(self._select_all)
-        custom.addWidget(self.select_all)
-        self.color_card.body.addLayout(custom)
-        self.color_hint = label("", "cardHint", wrap=True)
-        self.color_card.body.addWidget(self.color_hint)
-        self.add(self.color_card)
+        self.color.add_header_widget(self.target)
+        self.panel = ColorPanel(SWATCHES, vertical=True)
+        self.panel.colorChanged.connect(self._color_dragged)
+        self.panel.colorPicked.connect(self._color_picked)
+        self.color.body.addWidget(self.panel)
+        self.color_hint = text_label("", "faint", wrap=True)
+        self.color.body.addWidget(self.color_hint)
+        right.addWidget(self.color)
 
-        # Device settings -----------------------------------------------
-        self.features_card = Card("Device settings")
-        self.features = RowList()
-        self.features_card.body.addWidget(self.features)
-        self.add(self.features_card)
+        # Device options ------------------------------------------------------
+        self.features = Card("Device options", "gear")
+        self.feature_rows = RowList()
+        self.features.body.addWidget(self.feature_rows)
+        right.addWidget(self.features)
+        right.addStretch(1)
 
-        self.empty_card = Card("No keyboard lighting found")
-        self.empty_text = label("", "cardHint", wrap=True)
-        self.empty_card.body.addWidget(self.empty_text)
-        self.add(self.empty_card)
+        # Empty state ---------------------------------------------------------
+        self.empty = Card("No keyboard lighting found", "info")
+        self.empty_text = text_label("", "dim", wrap=True)
+        self.empty.body.addWidget(self.empty_text)
+        rescan = QtWidgets.QPushButton("Scan again")
+        rescan.setObjectName("primary")
+        rescan.setCursor(Qt.CursorShape.PointingHandCursor)
+        rescan.clicked.connect(self._rescan)
+        holder = QtWidgets.QHBoxLayout()
+        holder.addWidget(rescan)
+        holder.addStretch(1)
+        self.empty.body.addLayout(holder)
+        self.add(self.empty)
         self.finish()
 
-        self.bridge.deviceChanged.connect(self._on_device_changed)
-        self.bridge.devicesChanged.connect(self.refresh)
-        window.deviceSelected.connect(lambda _id: self.refresh())
+        self._params_timer = QtCore.QTimer(self)
+        self._params_timer.setSingleShot(True)
+        self._params_timer.setInterval(120)
+        self._params_timer.timeout.connect(self._apply_params)
 
-    # ----------------------------------------------------------------- sync
+        self.listen(self.bridge.deviceChanged, self._on_device_changed)
+        self.listen(self.bridge.devicesChanged, self.refresh)
+        self.listen(window.deviceSelected, self._on_selected)
+
+    # ---------------------------------------------------------------- sync
     def _on_device_changed(self, dev_id: str) -> None:
         if dev_id == self._dev_id:
             self.refresh()
 
+    def _on_selected(self, _dev_id: str) -> None:
+        self.refresh()
+
+    def _on_device_combo(self, _index: int) -> None:
+        self.window.select_device(self.device_combo.currentData())
+
+    def layout_changed(self) -> None:
+        self._dev_id = None
+        self.refresh()
+
     def refresh(self) -> None:
         dev = self.device()
         has = dev is not None
-        for card in (self.preview_card, self.power_card, self.mode_card):
-            card.setVisible(has)
-        self.empty_card.setVisible(not has)
+        self.columns.setVisible(has)
+        self.empty.setVisible(not has)
+        for w in (self.kind_chip, self.backend_chip):
+            w.setVisible(has)
+        self.device_combo.blockSignals(True)
+        self.device_combo.clear()
+        for dev_id in self.bridge.order:
+            self.device_combo.addItem(self.bridge.devices[dev_id]["name"], dev_id)
+        if dev:
+            self.device_combo.setCurrentIndex(max(0, self.device_combo.findData(dev["id"])))
+        self.device_combo.setVisible(len(self.bridge.order) > 1)
+        self.device_combo.blockSignals(False)
         if not has:
             self._dev_id = None
-            for w in (self.access_banner, self.rules_banner, self.color_card, self.features_card):
-                w.hide()
+            self.set_subtitle("")
+            self.access_banner.hide()
+            self.rules_banner.hide()
             hints = [h["text"] for h in self.bridge.system.get("hints", []) if h["level"] != "info"]
             self.empty_text.setText("\n\n".join(hints) or "ByteKeys did not find a keyboard light it can control.")
             self.keyboard.set_device(None)
@@ -184,158 +203,215 @@ class LightingPage(Page):
         if dev["id"] != self._dev_id:
             self._dev_id = dev["id"]
             self._selection = []
-            self._modes_key = None
+            self._effect_ids = []
+            self._params_key = None
+            self._feature_ids = []
             self.keyboard.set_device(dev, self.window.keyboard_layout())
             self.target.set_value("all")
         st = dev["effective"]
-        base = dev["state"]
-
-        # header
-        self.dev_name.setText(dev["name"])
-        n = len(dev.get("zones") or [])
-        self.kind_pill.setText(KIND_TEXT[dev["color_mode"]].format(n=n))
-        self.backend_pill.setText(BACKEND_TEXT.get(dev["backend"], dev["backend"]))
+        self.set_subtitle(dev["name"])
+        self.kind_chip.set(kind_text(dev), "accent")
+        self.backend_chip.set(BACKEND_TEXT.get(dev["backend"], dev["backend"]), "dim")
         effect = next((e for e in dev["effects"] if e["id"] == st["effect"]), None)
-        if effect and st["effect"] != "static":
-            self.effect_label.setText(f"{effect['name']}{' · on the keyboard' if effect['hardware'] else ''}")
-        else:
-            self.effect_label.setText("")
+        self.effect_label.setText(f"{effect['name']}{' · on the keyboard' if effect['hardware'] else ''}"
+                                  if effect and st["effect"] != "static" else "")
         self.keyboard.set_state(st)
+        self._sync_banners(dev)
+        self._sync_brightness(dev)
+        self._sync_effects(dev)
+        self._sync_params(dev)
+        self._sync_color(dev)
+        self._sync_features(dev)
 
-        # banners
+    def _sync_banners(self, dev: dict) -> None:
         problem = dev.get("error") or dev.get("access")
-        portable = self.bridge.mode == "portable"
         if problem:
-            self.access_banner.set("warn", problem, "Install service" if portable else None)
+            self.access_banner.set("warn", problem,
+                                   "Install service" if self.bridge.mode == "portable" else None)
             self.access_banner.show()
         else:
             self.access_banner.hide()
         active = [r for r in self.bridge.rules if r["id"] in dev.get("rules_active", [])]
         if active:
             names = ", ".join(r["name"] for r in active)
-            self.rules_banner.set("info", f"A rule is adjusting the lighting right now: {names}. "
-                                          "Changing a setting here takes over until the rule stops applying.")
+            self.rules_banner.set("info", f"An automation is adjusting the lighting right now: {names}. "
+                                          "Changing a setting here takes over until it stops applying.")
             self.rules_banner.show()
         else:
             self.rules_banner.hide()
 
-        self._sync_brightness(dev, st)
-        self._sync_mode(dev)
-        self._sync_color(dev, base)
-        self._sync_features(dev)
-
-    def _sync_brightness(self, dev: dict, st: dict) -> None:
-        levels = dev.get("levels")
-        top = dev["brightness_max"] if levels else 100
-        self.slider.blockSignals(True)
-        self.slider.setRange(0, top)
-        self.slider.setPageStep(1 if levels else 10)
-        self.slider.setTickPosition(QtWidgets.QSlider.TickPosition.TicksBelow if levels and top <= 10
-                                    else QtWidgets.QSlider.TickPosition.NoTicks)
-        if not self.slider.isSliderDown() and not self._pending:
-            pct = st["brightness"] if st["on"] else 0
-            self.slider.setValue(max(1, round(pct / 100 * top)) if levels and pct > 0 else
-                                 (0 if levels else pct))
-        self.slider.blockSignals(False)
+    # ------------------------------------------------------------ brightness
+    def _sync_brightness(self, dev: dict) -> None:
+        st = dev["effective"]
+        top, labels = DeviceControl.slider_range(dev)
+        self.slider.set_range(0, top)
+        self.slider.set_labels(labels if labels and len(labels) <= 6 else None)
+        if not self.slider.is_dragging() and not self.ctl.busy:
+            self.slider.set_value(DeviceControl.slider_value(dev))
+        self.level.setText(DeviceControl.level_text(dev, self.slider.value()))
         self.power.blockSignals(True)
         self.power.setChecked(bool(st["on"] and st["brightness"] > 0))
         self.power.blockSignals(False)
-        self._update_level_label()
-        self.levels_hint.setText(f"This keyboard has {top} brightness steps." if levels else "")
-        self.levels_hint.setVisible(bool(levels))
-
-    # ------------------------------------------------------------------ mode
-    def _sync_mode(self, dev: dict) -> None:
-        available = modes.quick_modes(dev)
-        key = (dev["id"], tuple(available))
-        if key != self._modes_key:
-            self._modes_key = key
-            for b in self.mode_group.buttons():
-                self.mode_group.removeButton(b)
-            clear_layout(self.mode_row)
-            for mode, text, effect_id in available:
-                b = QtWidgets.QPushButton(text)
-                b.setObjectName("segment")
-                b.setCheckable(True)
-                b.setCursor(Qt.CursorShape.PointingHandCursor)
-                b.setProperty("mode", mode)
-                eff = next((e for e in dev["effects"] if e["id"] == effect_id), None)
-                if eff and eff["hardware"]:
-                    b.setToolTip("Runs on the keyboard itself")
-                b.clicked.connect(lambda _=False, eid=effect_id: self._choose_mode(eid))
-                self.mode_group.addButton(b)
-                self.mode_row.addWidget(b)
-            self.mode_row.addStretch(1)
-        current = modes.mode_of(dev)
-        for b in self.mode_group.buttons():
-            b.setChecked(b.property("mode") == current)
-        effect = next((e for e in dev["effects"] if e["id"] == dev["state"]["effect"]), None)
-        self._build_speed(dev, effect)
-        if current is None and effect:
-            self.mode_hint.setText(f"Playing “{effect['name']}”. Pick a mode above or open All effects.")
-        elif effect and effect["hardware"] and effect["id"] != "static":
-            self.mode_hint.setText("This mode runs on the keyboard's own controller.")
+        if not dev.get("brightness_hw", True):
+            self.bright_hint.setText("This keyboard has no brightness control of its own; ByteKeys dims the "
+                                     "colors instead.")
+        elif labels and len(labels) > 6:
+            self.bright_hint.setText(f"{top} brightness steps.")
         else:
-            self.mode_hint.setText("")
-        self.mode_hint.setVisible(bool(self.mode_hint.text()))
+            self.bright_hint.setText("")
+        self.bright_hint.setVisible(bool(self.bright_hint.text()))
 
-    def _build_speed(self, dev: dict, effect: dict | None) -> None:
-        clear_layout(self.speed_holder)
-        param = modes.speed_param(effect)
-        self.speed_label.setVisible(param is not None)
-        if param is None:
-            return
-        value = dev["state"].get("params", {}).get("speed", param.get("default"))
-        if param.get("kind") == "choice":
-            seg = Segmented([(str(v), text) for v, text in param["choices"]])
-            seg.set_value(str(value))
-            seg.changed.connect(lambda v: self.bridge.set_state(self._dev_id, {"params": {"speed": v}}))
-            self.speed_holder.addWidget(seg)
-        else:
-            slider = QtWidgets.QSlider(Qt.Orientation.Horizontal)
-            slider.setFixedWidth(260)
-            slider.setRange(int(param.get("min", 0)), int(param.get("max", 100)))
-            try:
-                slider.setValue(int(value))
-            except (TypeError, ValueError):
-                slider.setValue(int(param.get("default", 50)))
-            slider.sliderReleased.connect(
-                lambda s=slider: self.bridge.set_state(self._dev_id, {"params": {"speed": s.value()}}))
-            self.speed_holder.addWidget(slider)
-
-    def _choose_mode(self, effect_id: str) -> None:
+    def _on_slider(self, value: int) -> None:
         dev = self.device()
         if not dev:
             return
-        effect = next((e for e in dev["effects"] if e["id"] == effect_id), None)
-        if effect:
-            self.bridge.set_state(dev["id"], modes.effect_changes(dev, effect))
+        self.level.setText(DeviceControl.level_text(dev, value))
+        self.power.blockSignals(True)
+        self.power.setChecked(value > 0)
+        self.power.blockSignals(False)
+        self.ctl.set_slider(value)
 
-    # ---------------------------------------------------------------- color
-    def _sync_color(self, dev: dict, base: dict) -> None:
+    def _on_power(self, on: bool) -> None:
+        self.ctl.set_power(on)
+
+    # --------------------------------------------------------------- effects
+    def _sync_effects(self, dev: dict) -> None:
+        ids = [e["id"] for e in dev["effects"]]
+        if ids != self._effect_ids:
+            self._effect_ids = ids
+            for b in self.effect_group.buttons():
+                self.effect_group.removeButton(b)
+            clear_layout(self.grid)
+            colors = dev["state"].get("effect_colors") or [dev["state"]["color"]]
+            if dev["color_mode"] == "none":
+                colors = ["#fff4e1"]
+            n_cols = 3
+            for i, effect in enumerate(dev["effects"]):
+                tile = EffectTile(effect, colors)
+                tile.clicked.connect(lambda _=False, eid=effect["id"]: self.ctl.choose_effect(eid))
+                self.effect_group.addButton(tile)
+                self.grid.addWidget(tile, i // n_cols, i % n_cols)
+            for c in range(n_cols):
+                self.grid.setColumnStretch(c, 1)
+        current = dev["state"]["effect"]
+        for b in self.effect_group.buttons():
+            b.setChecked(b.effect["id"] == current)
+
+    def _sync_params(self, dev: dict) -> None:
+        effect = next((e for e in dev["effects"] if e["id"] == dev["state"]["effect"]), None)
+        key = (dev["id"], dev["state"]["effect"])
+        if key == self._params_key:
+            return
+        self._params_key = key
+        clear_layout(self.params_box)
+        self._form = None
+        self._color_buttons = []
+        if not effect or (not effect["params"] and not effect.get("colors")):
+            self.params.hide()
+            return
+        self.params.show()
+        self.params.title_label.setText(f"{effect['name']} settings".upper())
+        if effect["params"]:
+            self._form = ParamForm(effect["params"], dev["state"].get("params", {}))
+            self._form.changed.connect(self._params_timer.start)
+            self.params_box.addWidget(self._form)
+        if effect.get("colors"):
+            row = QtWidgets.QHBoxLayout()
+            row.setSpacing(4)
+            row.addWidget(text_label("Colors", "dim"))
+            row.addSpacing(12)
+            colors = dev["state"].get("effect_colors") or []
+            for i in range(effect["colors"]):
+                btn = ColorButton(colors[i] if i < len(colors) else "#ffffff")
+                btn.colorChanged.connect(lambda _c: self._params_timer.start())
+                self._color_buttons.append(btn)
+                row.addWidget(btn)
+            row.addStretch(1)
+            self.params_box.addLayout(row)
+
+    def _apply_params(self) -> None:
+        dev = self.device()
+        if not dev:
+            return
+        changes: dict = {}
+        if self._form is not None:
+            changes["params"] = self._form.values()
+        if self._color_buttons:
+            changes["effect_colors"] = [b.color() for b in self._color_buttons]
+        if changes:
+            self.bridge.set_state(dev["id"], changes)
+
+    # ----------------------------------------------------------------- color
+    def _sync_color(self, dev: dict) -> None:
         rgb = dev["color_mode"] != "none"
-        self.color_card.setVisible(rgb)
+        self.color.setVisible(rgb)
+        zoned = dev["color_mode"] in ("zones", "perkey")
+        self.selection_bar.setVisible(zoned)
+        self.target.setVisible(zoned)
         if not rgb:
             return
-        zoned = dev["color_mode"] in ("zones", "perkey")
-        self.target.setVisible(zoned)
-        self.select_all.setVisible(zoned)
-        self.selection_hint.setVisible(zoned)
-        self.target.buttons["selected"].setText("Selected keys" if dev["color_mode"] == "perkey"
-                                                else "Selected zones")
-        current = normalize(base["color"])
-        for sw in self.swatches:
-            sw.setChecked(sw.color == current and not base.get("zones"))
-        if not self.hex_edit.hasFocus():
-            self.hex_edit.setText(current)
+        base = dev["state"]
+        if not self._color_live:
+            zones = base.get("zones") or []
+            shown = zones[self._selection[0]] if (self._selection and self._selection[0] < len(zones)
+                                                  and self.target.value() == "selected") else base["color"]
+            self.panel.set_color(normalize(shown))
         effect = next((e for e in dev["effects"] if e["id"] == base["effect"]), None)
         if effect and effect["hardware"] and not effect.get("colors"):
-            self.color_hint.setText("The current mode picks its own colors; choosing a color "
-                                    "switches back to Static.")
+            self.color_hint.setText("This mode picks its own colors; choosing a color switches back to Static.")
         else:
             self.color_hint.setText("")
         self.color_hint.setVisible(bool(self.color_hint.text()))
         self._update_selection_hint()
+
+    def _zones_target(self) -> list[int] | None:
+        dev = self.device()
+        if dev and dev["color_mode"] in ("zones", "perkey") and self.target.value() == "selected":
+            return list(self._selection)
+        return None
+
+    def _color_dragged(self, color: str) -> None:
+        zones = self._zones_target()
+        if zones == []:
+            return
+        self._color_live = True
+        self.ctl.preview_color(color, zones)
+
+    def _color_picked(self, color: str) -> None:
+        self._color_live = False
+        zones = self._zones_target()
+        if zones == []:
+            self.window.toast("Select keys or zones on the preview first")
+            return
+        self.ctl.apply_color(color, zones)
+
+    def _on_selection(self, zones: list) -> None:
+        self._selection = list(zones)
+        self.target.set_value("selected" if zones else "all")
+        self._update_selection_hint()
+
+    def _select_all(self) -> None:
+        dev = self.device()
+        if not dev:
+            return
+        n = len(dev.get("zones") or [])
+        self.keyboard.set_selection(range(n))
+        self._on_selection(list(range(n)))
+
+    def _clear_selection(self) -> None:
+        self.keyboard.set_selection([])
+        self._on_selection([])
+
+    def _update_selection_hint(self) -> None:
+        dev = self.device()
+        unit = "key" if dev and dev["color_mode"] == "perkey" else "zone"
+        n = len(self._selection)
+        if n:
+            self.selection_hint.setText(f"{n} {unit}{'s' if n != 1 else ''} selected")
+        else:
+            self.selection_hint.setText(f"Click {unit}s to color them separately"
+                                        + (" (drag to paint)" if unit == "key" else ""))
+        self.select_none.setVisible(bool(n))
 
     # -------------------------------------------------------------- features
     def _sync_features(self, dev: dict) -> None:
@@ -346,10 +422,10 @@ class LightingPage(Page):
             self._build_features(feats)
         else:
             self._update_features(feats)
-        self.features_card.setVisible(bool(feats))
+        self.features.setVisible(bool(feats))
 
     def _build_features(self, feats: list[dict]) -> None:
-        self.features.clear()
+        self.feature_rows.clear()
         self._feature_widgets = {}
         for f in feats:
             if f["kind"] == "bool":
@@ -358,21 +434,20 @@ class LightingPage(Page):
                 w.toggled.connect(lambda v, fid=f["id"]: self.bridge.set_feature(self._dev_id, fid, v))
             elif f["kind"] == "choice":
                 w = QtWidgets.QComboBox()
-                w.setMinimumWidth(190)
+                w.setMinimumWidth(150)
                 for value, text in f["choices"]:
                     w.addItem(text, value)
-                idx = w.findData(str(f["value"]))
-                w.setCurrentIndex(max(0, idx))
+                w.setCurrentIndex(max(0, w.findData(str(f["value"]))))
                 w.activated.connect(lambda _i, fid=f["id"], combo=w:
                                     self.bridge.set_feature(self._dev_id, fid, combo.currentData()))
             else:
                 w = QtWidgets.QSpinBox()
                 w.setRange(int(f["min"]), int(f["max"]))
                 w.setValue(int(f["value"] or f["min"]))
-                w.setMinimumWidth(110)
+                w.setMinimumWidth(90)
                 w.editingFinished.connect(lambda fid=f["id"], spin=w:
                                           self.bridge.set_feature(self._dev_id, fid, spin.value()))
-            self.features.add(SettingRow(f["name"], f.get("description") or None, w))
+            self.feature_rows.add(SettingRow(f["name"], f.get("description") or None, w))
             self._feature_widgets[f["id"]] = w
 
     def _update_features(self, feats: list[dict]) -> None:
@@ -391,129 +466,7 @@ class LightingPage(Page):
                 w.setValue(int(f["value"]))
             w.blockSignals(False)
 
-    # ------------------------------------------------------------- brightness
-    def _queue(self, changes: dict) -> None:
-        self._pending.update(changes)
-        self._send_timer.start()
-
-    def _flush(self) -> None:
-        if self._pending and self._dev_id:
-            changes, self._pending = self._pending, {}
-            self.bridge.set_state(self._dev_id, changes)
-
-    def _slider_pct(self) -> int:
-        dev = self.device()
-        if dev and dev.get("levels"):
-            return int(round(self.slider.value() * 100 / max(1, dev["brightness_max"])))
-        return self.slider.value()
-
-    def _update_level_label(self) -> None:
-        dev = self.device()
-        if not dev:
-            return
-        levels = dev.get("levels")
-        value = self.slider.value()
-        if not self.power.isChecked() or value == 0:
-            self.level_label.setText("Off")
-        elif levels:
-            self.level_label.setText(levels[min(value, len(levels) - 1)])
-        else:
-            self.level_label.setText(f"{value}%")
-
-    def _on_slider(self, _value: int) -> None:
-        pct = self._slider_pct()
-        self.power.blockSignals(True)
-        self.power.setChecked(pct > 0)
-        self.power.blockSignals(False)
-        self._update_level_label()
-        self._queue({"on": pct > 0, **({"brightness": pct} if pct > 0 else {})})
-
-    def _on_power(self, on: bool) -> None:
-        changes: dict = {"on": on}
-        dev = self.device()
-        if on and dev and dev["state"]["brightness"] == 0:
-            changes["brightness"] = 100
-        self._queue(changes)
-        self._flush()
-
-    # ------------------------------------------------------------------ color
-    def _on_selection(self, zones: list) -> None:
-        self._selection = list(zones)
-        if zones:
-            self.target.set_value("selected")
-        self._update_selection_hint()
-
-    def _select_all(self) -> None:
-        dev = self.device()
-        if not dev:
-            return
-        n = len(dev.get("zones") or [])
-        self.keyboard.set_selection(range(n))
-        self._on_selection(list(range(n)))
-
-    def _update_selection_hint(self) -> None:
-        n = len(self._selection)
-        dev = self.device()
-        unit = "key" if dev and dev["color_mode"] == "perkey" else "zone"
-        if self.target.value() == "selected":
-            self.selection_hint.setText(f"{n} {unit}{'s' if n != 1 else ''} selected" if n
-                                        else f"Click {unit}s on the keyboard to select them")
-        else:
-            self.selection_hint.setText("")
-
-    def _color_changes(self, color: str) -> dict:
-        dev = self.device()
-        st = dev["state"]
-        changes: dict = {"on": True}
-        if dev["color_mode"] in ("zones", "perkey") and self.target.value() == "selected":
-            if not self._selection:
-                self.window.toast("Select zones on the keyboard first")
-                return {}
-            changes["zones"] = {str(i): color for i in self._selection}
-        else:
-            changes["color"] = color
-        effect = next((e for e in dev["effects"] if e["id"] == st["effect"]), None)
-        if effect and effect["hardware"]:
-            if effect.get("colors"):
-                changes["effect_colors"] = [color] + list(st.get("effect_colors") or [])[1:effect["colors"]]
-            else:
-                changes["effect"] = "static"   # e.g. a firmware rainbow cannot show one color
-        return changes
-
-    def _apply_color(self, color: str) -> None:
-        if not self._dev_id:
-            return
-        changes = self._color_changes(color)
-        if changes:
-            self._queue(changes)
-            self._flush()
-
-    def _hex_entered(self) -> None:
-        text = self.hex_edit.text().strip()
-        if is_color(text):
-            self._apply_color(normalize(text))
-        else:
-            self.window.toast(f"'{text}' is not a color (use #rrggbb)", error=True)
-
-    def _custom_color(self) -> None:
-        dev = self.device()
-        if not dev:
-            return
-        original = dev["state"]
-        dlg = QtWidgets.QColorDialog(QtGui.QColor(original["color"]), self)
-        dlg.setWindowTitle("Keyboard color")
-        dlg.setOption(QtWidgets.QColorDialog.ColorDialogOption.DontUseNativeDialog, True)
-
-        def live(qcolor):
-            changes = self._color_changes(qcolor.name())
-            if changes:
-                self._queue(changes)
-
-        dlg.currentColorChanged.connect(live)
-        if dlg.exec():
-            self._apply_color(dlg.selectedColor().name())
-        else:
-            self._send_timer.stop()
-            self._pending = {}
-            restore = {k: original[k] for k in ("color", "zones", "effect", "effect_colors")}
-            self.bridge.set_state(dev["id"], restore)
+    def _rescan(self) -> None:
+        self.bridge.rescan()
+        n = len(self.bridge.order)
+        self.window.toast(f"Found {n} keyboard light{'s' if n != 1 else ''}" if n else "Still nothing found")

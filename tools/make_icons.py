@@ -24,9 +24,11 @@ ICON = os.path.join(ROOT, "data/icons/io.github.isthatdhruv.ByteKeys.svg")
 BRAND = os.path.join(ROOT, "data/branding")
 WEB = os.path.join(BRAND, "web")
 
-FONT_FAMILY, FONT_WEIGHT = "Lato", 800
-TEXT_LIGHT, TEXT_DARK = "#f4f6ff", "#141a2e"
-KEYS_GRADIENT = ("#3fa2ff", "#a26bff")
+FONT_FAMILY, FONT_WEIGHT = "Lato", 700
+TEXT_LIGHT, TEXT_DARK = "#f6f6f8", "#121215"
+KEYS_GRADIENT = {"dark": ("#dcdce2", "#7f7f89"), "light": ("#55555f", "#9a9aa5")}
+TAGLINE = "CONTROL YOUR KEYBOARD LIGHTING"
+TAGLINE_COLOR = {"dark": "#b4b4bc", "light": "#6a6a75"}
 
 
 # ------------------------------------------------------------------ wordmark
@@ -72,42 +74,61 @@ def wordmark() -> None:
     keys.addText(QtCore.QPointF(metrics.horizontalAdvance("Byte") - 1.5, 0), font, "Keys")
     both = byte.boundingRect().united(keys.boundingRect())
     text_w, text_h, text_top = both.width(), both.height(), both.top()
+    small = QtGui.QFont(FONT_FAMILY)
+    small.setPixelSize(15)
+    small.setWeight(QtGui.QFont.Weight(400))
+    small.setLetterSpacing(QtGui.QFont.SpacingType.AbsoluteSpacing, 6)
+    tagline = QtGui.QPainterPath()
+    tagline.addText(QtCore.QPointF(0, 0), small, TAGLINE)
+    tag_rect = tagline.boundingRect()
     defs, body = _icon_body()
     os.makedirs(BRAND, exist_ok=True)
 
-    def write(name: str, width: float, height: float, icon_xform: str, text_xform: str, byte_color: str) -> None:
+    def write(name: str, width: float, height: float, icon_xform: str, text_xform: str, byte_color: str,
+              tag_xform: str | None = None) -> None:
+        variant = "light" if byte_color == TEXT_DARK else "dark"
+        g0, g1 = KEYS_GRADIENT[variant]
         grad = (f'<linearGradient id="wk" gradientUnits="userSpaceOnUse" x1="{keys.boundingRect().left():.1f}" '
-                f'y1="0" x2="{keys.boundingRect().right():.1f}" y2="0">'
-                f'<stop offset="0" stop-color="{KEYS_GRADIENT[0]}"/><stop offset="1" stop-color="{KEYS_GRADIENT[1]}"/>'
+                f'y1="{keys.boundingRect().top():.1f}" x2="{keys.boundingRect().right():.1f}" '
+                f'y2="{keys.boundingRect().bottom():.1f}">'
+                f'<stop offset="0" stop-color="{g0}"/><stop offset="1" stop-color="{g1}"/>'
                 f"</linearGradient>")
+        tag = (f'<g transform="{tag_xform}"><path fill="{TAGLINE_COLOR[variant]}" d="{_svg_path(tagline)}"/></g>\n'
+               if tag_xform else "")
         svg = (f'<svg xmlns="http://www.w3.org/2000/svg" width="{width:.0f}" height="{height:.0f}" '
                f'viewBox="0 0 {width:.1f} {height:.1f}">\n<title>ByteKeys</title>\n'
                f"<defs>{defs}{grad}</defs>\n"
                f'<g transform="{icon_xform}">{body}</g>\n'
                f'<g transform="{text_xform}">'
                f'<path fill="{byte_color}" d="{_svg_path(byte)}"/>'
-               f'<path fill="url(#wk)" d="{_svg_path(keys)}"/></g>\n</svg>\n')
+               f'<path fill="url(#wk)" d="{_svg_path(keys)}"/></g>\n{tag}</svg>\n')
         with open(os.path.join(BRAND, name), "w", encoding="utf-8") as f:
             f.write(svg)
         print("wrote", name)
 
-    # Stacked logo (icon above the wordmark), like the original artwork.
+    # Stacked logo: icon, wordmark, tagline (like the original artwork).
     scale = 0.62
-    w = max(256, text_w * scale + 40)
-    h = 256 + 16 + text_h * scale + 24
+    w = max(256, text_w * scale + 40, tag_rect.width() + 40)
+    text_y = 256 + 14
+    tag_y = text_y + text_h * scale + 26
+    h = tag_y + tag_rect.height() + 10
     tx = (w - text_w * scale) / 2
-    ty = 256 + 16 - text_top * scale
     for name, color in (("bytekeys-logo.svg", TEXT_LIGHT), ("bytekeys-logo-light.svg", TEXT_DARK)):
-        write(name, w, h, f"translate({(w - 256) / 2:.1f} 0)", f"translate({tx:.1f} {ty:.1f}) scale({scale})", color)
+        write(name, w, h, f"translate({(w - 256) / 2:.1f} 0)",
+              f"translate({tx:.1f} {text_y - text_top * scale:.1f}) scale({scale})", color,
+              f"translate({(w - tag_rect.width()) / 2 - tag_rect.left():.1f} {tag_y - tag_rect.top():.1f})")
 
-    # Horizontal banner: icon left, wordmark right.
+    # Horizontal banner: icon left, wordmark and tagline right.
     icon = 160
     scale = 0.95
-    w = icon + 28 + text_w * scale + 20
+    w = icon + 24 + max(text_w * scale, tag_rect.width() * 0.9) + 20
     h = icon
-    ty = (h - text_h * scale) / 2 - text_top * scale
+    block = text_h * scale + 14 + tag_rect.height() * 0.9
+    ty = (h - block) / 2 - text_top * scale
+    tag_y = (h - block) / 2 + text_h * scale + 14 - tag_rect.top() * 0.9
     for name, color in (("bytekeys-banner.svg", TEXT_LIGHT), ("bytekeys-banner-light.svg", TEXT_DARK)):
-        write(name, w, h, f"scale({icon / 256:.4f})", f"translate({icon + 28} {ty:.1f}) scale({scale})", color)
+        write(name, w, h, f"scale({icon / 256:.4f})", f"translate({icon + 24} {ty:.1f}) scale({scale})", color,
+              f"translate({icon + 26} {tag_y:.1f}) scale(0.9)")
 
 
 # -------------------------------------------------------------------- raster
@@ -160,6 +181,25 @@ def raster() -> None:
     _social_preview()
 
 
+def _backdrop(width: int, height: int):
+    """Near-black canvas with warm light in two corners, like the logo artwork."""
+    import gi
+    gi.require_version("GdkPixbuf", "2.0")
+    from gi.repository import GdkPixbuf
+    svg = (f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}">'
+           '<defs><radialGradient id="a" cx="0" cy="0" r="0.75"><stop offset="0" stop-color="#6e604e" '
+           'stop-opacity="0.65"/><stop offset="1" stop-color="#6e604e" stop-opacity="0"/></radialGradient>'
+           '<radialGradient id="b" cx="1" cy="1" r="0.7"><stop offset="0" stop-color="#7a6c5a" '
+           'stop-opacity="0.55"/><stop offset="1" stop-color="#7a6c5a" stop-opacity="0"/></radialGradient></defs>'
+           f'<rect width="{width}" height="{height}" fill="#0b0b0d"/>'
+           f'<rect width="{width}" height="{height}" fill="url(#a)"/><rect width="{width}" height="{height}" fill="url(#b)"/>'
+           '</svg>')
+    loader = GdkPixbuf.PixbufLoader.new_with_type("svg")
+    loader.write(svg.encode())
+    loader.close()
+    return loader.get_pixbuf()
+
+
 def _social_preview() -> None:
     """1280x640 image for the GitHub repository's social preview."""
     banner = os.path.join(BRAND, "bytekeys-banner.svg")
@@ -168,8 +208,7 @@ def _social_preview() -> None:
     import gi
     gi.require_version("GdkPixbuf", "2.0")
     from gi.repository import GdkPixbuf
-    canvas = GdkPixbuf.Pixbuf.new(GdkPixbuf.Colorspace.RGB, True, 8, 1280, 640)
-    canvas.fill(0x0E1220FF)
+    canvas = _backdrop(1280, 640)
     logo = _render(banner, 900, 300)
     x = (1280 - logo.get_width()) // 2
     y = (640 - logo.get_height()) // 2

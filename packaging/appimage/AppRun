@@ -1,6 +1,6 @@
 #!/bin/sh
 # ByteKeys AppImage entry point.
-#   ByteKeys.AppImage                 open the control panel
+#   ByteKeys.AppImage                 open the control center
 #   ByteKeys.AppImage cli ARGS...     run the command line tool (bytekeys ARGS...)
 #   ByteKeys.AppImage service install install the background service
 HERE="$(dirname "$(readlink -f "$0")")"
