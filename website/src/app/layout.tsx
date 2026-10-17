@@ -11,7 +11,7 @@ import { organizationId, site, websiteId } from "@/lib/site";
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains", display: "swap" });
 
-const defaultTitle = "ByteKeys: keyboard backlight and RGB control for Linux laptops";
+const defaultTitle = "ByteKeys: lighting, fans and performance for Linux laptops";
 
 const verification: NonNullable<Metadata["verification"]> = {};
 if (process.env.GOOGLE_SITE_VERIFICATION) verification.google = process.env.GOOGLE_SITE_VERIFICATION;
